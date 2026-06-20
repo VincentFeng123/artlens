@@ -1,0 +1,11 @@
+# Minimal Supabase config. If `supabase start` complains about missing fields
+# on your CLI version, run `supabase init` to regenerate a full config.toml,
+# then re-add the [functions.*] blocks below.
+project_id = "artlens"
+
+# Public endpoints — no end-user JWT required (called with the anon key).
+[functions.scan]
+verify_jwt = false
+
+[functions.job-status]
+verify_jwt = false

@@ -1,0 +1,22 @@
+-- Optional: pre-seed known artworks so a scan resolves *instantly* from cache,
+-- skipping recognition + generation. Useful for a known museum collection.
+--
+-- Each row needs a `panorama_url` already hosted somewhere CORS-permissive
+-- (the `panoramas` Storage bucket is ideal — it's public by default). The cache
+-- match is case-insensitive on (title, artist), so these should match what the
+-- vision model returns for the same artwork.
+--
+-- Apply with either:
+--   supabase db execute --file supabase/seed.sql
+-- or paste into the Supabase Studio SQL editor.
+
+-- Example (uncomment + edit, or upload your own panorama first):
+--
+-- insert into public.artworks (title, artist, scene_prompt, panorama_url)
+-- values (
+--   'The Starry Night',
+--   'Vincent van Gogh',
+--   'A swirling cobalt night sky over a sleeping village, cypress reaching upward.',
+--   'https://YOUR-PROJECT.supabase.co/storage/v1/object/public/panoramas/starry-night.png'
+-- )
+-- on conflict do nothing;
