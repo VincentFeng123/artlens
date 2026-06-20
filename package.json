@@ -1,0 +1,32 @@
+{
+  "name": "artlens",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Scan an artwork, step into its world — a 360° skybox generated from a painting.",
+  "scripts": {
+    "gen:demo": "node scripts/gen-demo-panorama.mjs",
+    "predev": "node scripts/gen-demo-panorama.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/gen-demo-panorama.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.46.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
