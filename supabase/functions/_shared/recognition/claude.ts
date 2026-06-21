@@ -1,6 +1,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
 import type { RecognitionResult } from '../types.ts'
-import { RECOGNITION_PROMPT } from '../prompt.ts'
+import { RECOGNITION_PROMPT, parseRecognitionJson } from '../prompt.ts'
 import { RECOGNITION_JSON_SCHEMA, type RecognitionInput } from './index.ts'
 
 /**
@@ -22,7 +22,7 @@ export async function recognizeWithClaude({
   // the params shape comes from current Anthropic docs.
   const params = {
     model,
-    max_tokens: 1024,
+    max_tokens: 3072, // headroom for the spatial/style world-building fields
     messages: [
       {
         role: 'user',
@@ -47,5 +47,5 @@ export async function recognizeWithClaude({
 
   const text = message.content.find((b) => b.type === 'text')?.text
   if (!text) throw new Error('Claude returned no text content')
-  return JSON.parse(text) as RecognitionResult
+  return parseRecognitionJson(text)
 }

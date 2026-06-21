@@ -5,8 +5,8 @@ import {
   getRecognitionProvider,
   hasRecognitionKey,
 } from '../_shared/recognition/index.ts'
-import { getPanoramaProvider, hasPanoramaKey } from '../_shared/panorama/index.ts'
-import { buildScenePrompt } from '../_shared/prompt.ts'
+import { getPanoramaProvider, hasPanoramaProvider } from '../_shared/panorama/index.ts'
+import { buildArtworkMeta, buildScenePrompt, DEMO_META } from '../_shared/prompt.ts'
 import type { RecognitionResult } from '../_shared/types.ts'
 
 // Relative path — the client resolves it against the app origin, which serves
@@ -37,8 +37,9 @@ Deno.serve(async (req) => {
     return json({
       status: 'ready',
       panorama_url: DEMO_PANORAMA,
-      title: 'A World Within',
-      artist: 'Artlens — demo',
+      title: DEMO_META.title,
+      artist: DEMO_META.artist,
+      meta: DEMO_META,
       demo: true,
     })
   }
@@ -54,15 +55,16 @@ Deno.serve(async (req) => {
     return json({ status: 'error', error: `Recognition failed: ${errMessage(e)}` }, 502)
   }
 
-  const title = recognition.title?.trim() || 'Untitled'
-  const artist = recognition.artist?.trim() || 'Unknown artist'
+  const meta = buildArtworkMeta(recognition)
+  const title = meta.title
+  const artist = meta.artist
   const admin = adminClient()
 
   // 2) Cache lookup (only trust confidently recognized works).
   if (recognition.recognized) {
     const { data: hit } = await admin
       .from('artworks')
-      .select('id, title, artist, panorama_url')
+      .select('id, title, artist, panorama_url, depth_url')
       .ilike('title', title)
       .ilike('artist', artist)
       .not('panorama_url', 'is', null)
@@ -72,8 +74,10 @@ Deno.serve(async (req) => {
       return json({
         status: 'ready',
         panorama_url: hit.panorama_url,
+        depth_url: hit.depth_url ?? null,
         title: hit.title ?? title,
         artist: hit.artist ?? artist,
+        meta: { ...meta, title: hit.title ?? title, artist: hit.artist ?? artist },
       })
     }
   }
@@ -94,7 +98,7 @@ Deno.serve(async (req) => {
     // non-fatal — generation can fall back to base64
   }
 
-  const scenePrompt = buildScenePrompt(recognition)
+  const { prompt: scenePrompt, negative: sceneNegative } = buildScenePrompt(recognition)
 
   // 4) Upsert the artwork row.
   const { data: artwork } = await admin
@@ -108,9 +112,9 @@ Deno.serve(async (req) => {
     .select('id')
     .single()
 
-  // 5) No panorama key → recognized, but serve the demo world.
-  if (!hasPanoramaKey()) {
-    return json({ status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, demo: true })
+  // 5) No usable generator → recognized (real dossier), but serve the demo world.
+  if (!hasPanoramaProvider()) {
+    return json({ status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, demo: true })
   }
 
   // 6) Create a job and run generation in the background.
@@ -129,6 +133,7 @@ Deno.serve(async (req) => {
     artworkId: artwork?.id ?? null,
     referenceImage: referenceUrl ?? image,
     scenePrompt,
+    sceneNegative,
   })
 
   // Keep the function alive until generation finishes (Supabase runtime API).
@@ -137,7 +142,9 @@ Deno.serve(async (req) => {
   if (runtime?.waitUntil) runtime.waitUntil(work)
   else work.catch((e) => console.error('background generation failed', e))
 
-  return json({ status: 'generating', job_id: job.id, title, artist })
+  // Recognition is already done — hand the dossier to the client to hold while
+  // it polls job-status for the panorama.
+  return json({ status: 'generating', job_id: job.id, title, artist, meta })
 })
 
 interface GenerationArgs {
@@ -146,6 +153,7 @@ interface GenerationArgs {
   artworkId: string | null
   referenceImage: string
   scenePrompt: string
+  sceneNegative: string
 }
 
 async function runGeneration({
@@ -154,14 +162,16 @@ async function runGeneration({
   artworkId,
   referenceImage,
   scenePrompt,
+  sceneNegative,
 }: GenerationArgs): Promise<void> {
   const stamp = () => new Date().toISOString()
   try {
     await admin.from('jobs').update({ status: 'generating', updated_at: stamp() }).eq('id', jobId)
 
-    const { equirectPngUrl } = await getPanoramaProvider().generate({
+    const { equirectPngUrl, depthUrl } = await getPanoramaProvider().generate({
       referenceImage,
       prompt: scenePrompt,
+      negative: sceneNegative,
     })
 
     // Re-host into our public, CORS-permissive bucket for WebGL.
@@ -176,12 +186,43 @@ async function runGeneration({
     const publicUrl = admin.storage.from('panoramas').getPublicUrl(path).data
       .publicUrl
 
+    // Re-host the depth map too (free Blockade byproduct, used for parallax).
+    // Non-fatal: a missing/failed depth map must not fail the job — the client
+    // falls back to in-browser depth or a flat sphere.
+    let depthPublicUrl: string | null = null
+    if (depthUrl) {
+      try {
+        const dRes = await fetch(depthUrl)
+        if (dRes.ok) {
+          const dBuf = new Uint8Array(await dRes.arrayBuffer())
+          const dPath = `depth/${jobId}.png`
+          const { error: dErr } = await admin.storage
+            .from('panoramas')
+            .upload(dPath, dBuf, { contentType: 'image/png', upsert: true })
+          if (!dErr) {
+            depthPublicUrl = admin.storage.from('panoramas').getPublicUrl(dPath).data
+              .publicUrl
+          }
+        }
+      } catch (e) {
+        console.error('depth re-host failed (non-fatal)', e)
+      }
+    }
+
     if (artworkId) {
-      await admin.from('artworks').update({ panorama_url: publicUrl }).eq('id', artworkId)
+      await admin
+        .from('artworks')
+        .update({ panorama_url: publicUrl, depth_url: depthPublicUrl })
+        .eq('id', artworkId)
     }
     await admin
       .from('jobs')
-      .update({ status: 'ready', panorama_url: publicUrl, updated_at: stamp() })
+      .update({
+        status: 'ready',
+        panorama_url: publicUrl,
+        depth_url: depthPublicUrl,
+        updated_at: stamp(),
+      })
       .eq('id', jobId)
   } catch (e) {
     await admin

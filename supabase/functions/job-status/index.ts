@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const admin = adminClient()
   const { data, error } = await admin
     .from('jobs')
-    .select('id, status, panorama_url, error')
+    .select('id, status, panorama_url, depth_url, error')
     .eq('id', jobId)
     .maybeSingle()
 
@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
     id: data.id,
     status: data.status,
     panorama_url: data.panorama_url,
+    depth_url: data.depth_url ?? null,
     error: data.error,
     title: null,
     artist: null,

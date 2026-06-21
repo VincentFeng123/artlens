@@ -1,42 +1,61 @@
-import type { PanoramaInput } from './index.ts'
+import type { PanoramaInput, PanoramaResult } from './index.ts'
 
 const BASE = 'https://backend.blockadelabs.com/api/v1'
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 180_000
+const DEFAULT_INIT_STRENGTH = 0.25 // Blockade's scale is inverted: lower = stronger artwork influence
 
 interface BlockadeRequest {
   id?: number | string
   status?: string
   file_url?: string
+  /** Equirectangular depth map, returned inline on Model 3 (absent on Model 4). */
+  depth_map_url?: string
   error_message?: string | null
 }
 
 /**
- * Blockade Labs Skybox AI (image-to-skybox). The artwork is passed as the
- * structure reference (`control_image` + `control_model: "remix"`), preserving
- * composition while reimagining it as a full 360° world. The API is async:
- * create the skybox, then poll until `status === "complete"`.
+ * Blockade Labs Skybox AI (image-to-skybox). The artwork conditions generation
+ * so the world stays faithful to the painting:
+ *  - `init` mode (default): `init_image` + low `init_strength` preserves BOTH the
+ *    palette AND composition — best fidelity. (`remix` keeps composition but drops
+ *    colour, so it's opt-in via BLOCKADE_MODE=remix.)
+ *  - Model 3 returns a free `depth_map_url` inline (used for parallax); Model 4 has
+ *    none, so we prefer a Model-3 style. If depth is absent we simply omit it.
+ * The API is async: create the skybox, then poll until `status === "complete"`.
  */
 export async function generateWithBlockade({
   referenceImage,
   prompt,
-}: PanoramaInput): Promise<{ equirectPngUrl: string }> {
+  negative,
+}: PanoramaInput): Promise<PanoramaResult> {
   const apiKey = Deno.env.get('BLOCKADE_LABS_API_KEY')
   if (!apiKey) throw new Error('BLOCKADE_LABS_API_KEY not set')
 
   const headers = { 'content-type': 'application/json', 'x-api-key': apiKey }
-  const styleId = await resolveStyleId(apiKey, headers)
+  const styleId = await resolveStyleId(headers)
 
-  // 1) Create
+  const mode = (Deno.env.get('BLOCKADE_MODE') ?? 'init').toLowerCase()
+  const initStrength = Number(Deno.env.get('BLOCKADE_INIT_STRENGTH') ?? DEFAULT_INIT_STRENGTH)
+
+  // 1) Create — condition on the artwork per mode.
+  const body: Record<string, unknown> = {
+    skybox_style_id: styleId,
+    prompt: prompt.slice(0, 2000),
+  }
+  if (negative) body.negative_text = negative.slice(0, 2000)
+  if (mode === 'remix') {
+    body.control_image = referenceImage
+    body.control_model = 'remix'
+  } else {
+    body.init_image = referenceImage
+    body.init_strength = initStrength
+  }
+
   const createRes = await fetch(`${BASE}/skybox`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      skybox_style_id: styleId,
-      prompt: prompt.slice(0, 2000),
-      control_image: referenceImage,
-      control_model: 'remix',
-    }),
+    body: JSON.stringify(body),
   })
   if (!createRes.ok) {
     throw new Error(`Blockade create ${createRes.status}: ${await createRes.text()}`)
@@ -55,7 +74,7 @@ export async function generateWithBlockade({
     const status = (req.status ?? '').toLowerCase()
     if (status === 'complete') {
       if (!req.file_url) throw new Error('Blockade completed without a file_url')
-      return { equirectPngUrl: req.file_url }
+      return { equirectPngUrl: req.file_url, depthUrl: req.depth_map_url || undefined }
     }
     if (status === 'error' || status === 'abort') {
       throw new Error(req.error_message || `Blockade generation ${status}`)
@@ -64,20 +83,43 @@ export async function generateWithBlockade({
   throw new Error('Blockade generation timed out')
 }
 
-/** Use the configured style id, else pick the first available style. */
-async function resolveStyleId(
-  _apiKey: string,
-  headers: Record<string, string>,
-): Promise<number> {
+/**
+ * Use the configured style id, else pick a Model-3 style (so depth maps are
+ * available), falling back to the first available style.
+ */
+async function resolveStyleId(headers: Record<string, string>): Promise<number> {
   const configured = Deno.env.get('BLOCKADE_SKYBOX_STYLE_ID')
   if (configured) return Number(configured)
 
   const res = await fetch(`${BASE}/skybox/styles`, { headers })
   if (!res.ok) throw new Error(`Blockade styles ${res.status}: ${await res.text()}`)
-  const styles = (await res.json()) as Array<{ id: number }>
-  const first = Array.isArray(styles) ? styles[0]?.id : undefined
-  if (first == null) throw new Error('No Blockade skybox styles available')
-  return first
+  const styles = (await res.json()) as BlockadeStyle[]
+  const flat = flattenStyles(styles)
+  const model3 = flat.find((s) => isModel3(s))
+  const chosen = model3?.id ?? flat[0]?.id
+  if (chosen == null) throw new Error('No Blockade skybox styles available')
+  return chosen
+}
+
+interface BlockadeStyle {
+  id?: number
+  model?: string
+  model_version?: number | string
+  name?: string
+  /** The styles endpoint sometimes nests variants under a family. */
+  items?: BlockadeStyle[]
+}
+
+/** The styles endpoint may return flat styles or families with nested `items`. */
+function flattenStyles(styles: BlockadeStyle[]): BlockadeStyle[] {
+  if (!Array.isArray(styles)) return []
+  return styles.flatMap((s) => (Array.isArray(s.items) ? s.items : [s]))
+}
+
+/** Best-effort: does this style belong to Model 3 (which returns depth maps)? */
+function isModel3(s: BlockadeStyle): boolean {
+  const hay = `${s.model ?? ''} ${s.model_version ?? ''}`.toLowerCase()
+  return hay.includes('3')
 }
 
 /** Blockade responses are sometimes wrapped in `{ request: {...} }`. */

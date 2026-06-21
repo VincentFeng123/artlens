@@ -1,6 +1,9 @@
-import type { ArtworkMeta, RecognitionResult } from './types.ts'
+// Runtime-agnostic prompts shared by the local dev API (Node) and the client.
+// The Supabase Edge Functions keep a Deno-side mirror at
+// supabase/functions/_shared/prompt.ts — keep the two in sync.
 
-/** Instruction sent to the vision LLM. Each adapter pairs this with the image. */
+import type { ArtworkMeta, RecognitionResult } from './types'
+
 export const RECOGNITION_PROMPT = `You are a brilliant museum docent — the kind who makes a 400-year-old object feel load-bearing. Look at this photo of a physical artwork and identify it, then write its story.
 
 Golden rule: translate every fact into meaning. Never write a placard. "1889" becomes "painted in the asylum at Saint-Rémy". "Oil on canvas, impasto" becomes "the paint is a quarter-inch thick — you can see how fast his hand was moving". "Lapis lazuli" becomes "that blue cost more than gold". Nobody opened this app to read an accession number.
@@ -90,11 +93,12 @@ const BASE_NEGATIVES = [
 ]
 
 /**
- * Build the generator brief fed to the panorama provider. Emits a coherent 360°
- * SPACE (ahead / around / behind / above / below) from the structured spatial
- * fields, leads loud with the medium so the world is painted in the same hand
- * (not photorealized), enforces the palette, and returns a separate negative
- * clause. Falls back to `scene_description` when the structured layout is sparse.
+ * Build the generator brief. Emits a coherent 360° SPACE (what's ahead / around /
+ * behind / above / below) from the structured spatial fields, leads loud with the
+ * medium so the world is painted in the same hand (not photorealized), enforces the
+ * palette, and returns a separate negative clause for providers that accept one.
+ * Falls back to `scene_description` when the structured layout is sparse (older
+ * cached rows, the demo dossier).
  */
 export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
   const sl = r.spatial_layout
@@ -103,12 +107,14 @@ export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
       ? ` In the spirit of "${r.title}"${r.artist ? ` by ${r.artist}` : ''}.`
       : ''
 
+  // Medium first and loud — this is what keeps it a painting, not a photo.
   const mediumLine = r.technique
     ? ` Rendered entirely as ${r.technique}; every surface shows this same hand and medium — a painting, never a photograph or 3D render.`
     : r.medium
       ? ` Painted in ${r.medium}, never photographic.`
       : ''
 
+  // Directional space: ahead / around / behind / above / below.
   const space = [
     sl?.midground && `Directly ahead: ${sl.midground}.`,
     sl?.foreground && `Close around you: ${sl.foreground}.`,
@@ -120,6 +126,7 @@ export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
     .filter(Boolean)
     .join(' ')
 
+  // When the structured layout is empty, lean on the prose scene description.
   const sceneFallback = !space && r.scene_description ? ` ${r.scene_description}` : ''
 
   const vantage = r.vantage ? ` You stand ${r.vantage}.` : ''
@@ -252,3 +259,133 @@ export const DEMO_META: ArtworkMeta = {
   ],
   demo: true,
 }
+
+export const RECOGNITION_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    recognized: { type: 'boolean' },
+    confidence: { type: 'number' },
+    title: { type: 'string' },
+    artist: { type: 'string' },
+    artist_life: { type: 'string' },
+    year: { type: 'string' },
+    medium: { type: 'string' },
+    dimensions: { type: 'string' },
+    location: { type: 'string' },
+    provenance: { type: 'string' },
+    hook: { type: 'string' },
+    story: { type: 'string' },
+    scene_description: { type: 'string' },
+    brushwork: { type: 'string' },
+    materiality: { type: 'string' },
+    scale_note: { type: 'string' },
+    palette: { type: 'array', items: { type: 'string' } },
+    symbolism: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          detail: { type: 'string' },
+          meaning: { type: 'string' },
+        },
+        required: ['detail', 'meaning'],
+        additionalProperties: false,
+      },
+    },
+    hidden_details: { type: 'array', items: { type: 'string' } },
+    process: { type: 'string' },
+    why_made: { type: 'string' },
+    legacy: { type: 'string' },
+    debates: { type: 'string' },
+    style: { type: 'string' },
+    mood: { type: 'string' },
+    similar_works: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          artist: { type: 'string' },
+        },
+        required: ['title', 'artist'],
+        additionalProperties: false,
+      },
+    },
+    spatial_layout: {
+      type: 'object',
+      properties: {
+        foreground: { type: 'string' },
+        midground: { type: 'string' },
+        background: { type: 'string' },
+        overhead: { type: 'string' },
+        underfoot: { type: 'string' },
+      },
+      required: ['foreground', 'midground', 'background', 'overhead', 'underfoot'],
+      additionalProperties: false,
+    },
+    horizon: { type: 'string' },
+    perspective: { type: 'string' },
+    light: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string' },
+        quality: { type: 'string' },
+      },
+      required: ['direction', 'quality'],
+      additionalProperties: false,
+    },
+    vantage: { type: 'string' },
+    offscreen: { type: 'string' },
+    technique: { type: 'string' },
+    render_negatives: { type: 'array', items: { type: 'string' } },
+    artwork_box: {
+      type: 'object',
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' },
+        w: { type: 'number' },
+        h: { type: 'number' },
+      },
+      required: ['x', 'y', 'w', 'h'],
+      additionalProperties: false,
+    },
+  },
+  required: [
+    'recognized',
+    'confidence',
+    'title',
+    'artist',
+    'artist_life',
+    'year',
+    'medium',
+    'dimensions',
+    'location',
+    'provenance',
+    'hook',
+    'story',
+    'scene_description',
+    'brushwork',
+    'materiality',
+    'scale_note',
+    'palette',
+    'symbolism',
+    'hidden_details',
+    'process',
+    'why_made',
+    'legacy',
+    'debates',
+    'style',
+    'mood',
+    'similar_works',
+    'spatial_layout',
+    'horizon',
+    'perspective',
+    'light',
+    'vantage',
+    'offscreen',
+    'technique',
+    'render_negatives',
+    'artwork_box',
+  ],
+  additionalProperties: false,
+} as const

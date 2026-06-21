@@ -1,5 +1,5 @@
 import type { RecognitionResult } from '../types.ts'
-import { RECOGNITION_PROMPT } from '../prompt.ts'
+import { RECOGNITION_PROMPT, parseRecognitionJson } from '../prompt.ts'
 import { RECOGNITION_JSON_SCHEMA, type RecognitionInput } from './index.ts'
 
 /**
@@ -43,7 +43,7 @@ export async function recognizeWithOpenAI({
           schema: RECOGNITION_JSON_SCHEMA,
         },
       },
-      max_completion_tokens: 1024,
+      max_completion_tokens: 3072, // headroom for the spatial/style world-building fields
     }),
   })
 
@@ -56,5 +56,5 @@ export async function recognizeWithOpenAI({
   }
   const text = data.choices?.[0]?.message?.content ?? ''
   if (!text) throw new Error('OpenAI returned no content')
-  return JSON.parse(text) as RecognitionResult
+  return parseRecognitionJson(text)
 }

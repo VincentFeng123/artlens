@@ -62,10 +62,86 @@ automatically on `predev` / `prebuild`. Regenerate anytime with `npm run gen:dem
 
 ---
 
+## Try real recognition locally (just a `.env` — no Supabase)
+
+The fastest way to see the AI recognize a real artwork. The Vite dev server
+does the recognition in-process; your key stays on your machine and is **never**
+included in the browser bundle.
+
+```bash
+cp .env.example .env
+# edit .env and set (pick your provider — Claude is the default):
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   (optional, to also generate the real 360° world:)
+#   BLOCKADE_LABS_API_KEY=...
+npm run dev      # restart after editing .env
+```
+
+- With **just `ANTHROPIC_API_KEY`**: the artwork is recognized and the overlay
+  shows the real **title / artist** — over the demo panorama. (This confirms
+  recognition is working.)
+- To generate the **world** from the artwork, pick a panorama provider:
+  - `PANORAMA_PROVIDER=pollinations` — **keyless** (no signup); artwork-derived
+    but not a perfectly seamless equirectangular skybox (faint left/right seam).
+  - `PANORAMA_PROVIDER=blockade` + `BLOCKADE_LABS_API_KEY=...` — best quality,
+    true seamless skyboxes (needs a key).
+- Other recognizers: set `RECOGNITION_PROVIDER=openai` + `OPENAI_API_KEY`, or
+  `=gemini` + `GEMINI_API_KEY`. Override model ids with `ANTHROPIC_MODEL` /
+  `OPENAI_MODEL` / `GEMINI_MODEL` if your key can't access the default.
+
+> Restart `npm run dev` after editing `.env` (Vite reads it at startup). This
+> local path is dev-only; the production build uses Supabase (below).
+
+## Sharper worlds for free: local ComfyUI (no key, no payment)
+
+Free hosted generators cap resolution (Pollinations), and the high-quality ones
+charge for API access (Blockade). The only way to get a sharp 360° world for
+free is to run the image model yourself. On a Mac that's **ComfyUI**, which runs
+on Apple Silicon (MPS) — no NVIDIA, no API key, no payment.
+
+Tradeoffs, up front: a real one-time setup (a multi-GB model download) and slow
+generation on a Mac (~1–3 min per world). It only works while ComfyUI is running
+on your machine (great for local + phone-on-same-Wi-Fi; not for a public deploy).
+
+**1. Install ComfyUI**
+- Easiest: the macOS desktop app — https://www.comfy.org/download
+- Or from source:
+  ```bash
+  git clone https://github.com/comfyanonymous/ComfyUI
+  cd ComfyUI
+  python3 -m venv venv && source venv/bin/activate
+  pip install -r requirements.txt
+  ```
+
+**2. Download an SDXL checkpoint** into `ComfyUI/models/checkpoints/` — default
+expected name `sd_xl_base_1.0.safetensors` (Hugging Face
+`stabilityai/stable-diffusion-xl-base-1.0`, ~6.9 GB). Use a different file? Set
+`COMFYUI_CKPT` to match.
+
+**3. Start ComfyUI** — launch the desktop app, or `python3 main.py` from source.
+Confirm it loads at http://127.0.0.1:8188.
+
+**4. Point Artlens at it** — in `.env`:
+```
+PANORAMA_PROVIDER=comfyui
+COMFYUI_URL=http://127.0.0.1:8188
+COMFYUI_CKPT=sd_xl_base_1.0.safetensors
+```
+Restart `npm run dev` and scan. The dev server queues a hires-fix SDXL workflow
+(generates near ~1 MP, then upscales to 2048×1024) and returns the result.
+
+- **Memory:** SDXL wants ~16 GB unified memory. On an 8 GB Mac, use an SD 1.5
+  checkpoint (`COMFYUI_CKPT=v1-5-pruned-emaonly.safetensors`) and lower
+  `COMFYUI_WIDTH` / `COMFYUI_HEIGHT`.
+- **Seam:** the core-node workflow isn't horizontally seamless (faint left/right
+  seam). For a true wrap, install a seamless-tiling custom node and the workflow
+  in `dev-api/providers.ts` can be updated to use it.
+
 ## Enabling the real pipeline (Supabase + providers)
 
-Demo mode covers the full UX. To recognize real artworks and generate worlds
-from them, stand up the backend.
+For production, recognition + generation run in Supabase Edge Functions (keys as
+secrets, results cached). Demo mode and the local `.env` path above cover the UX
+without it.
 
 ### Prerequisites
 - A [Supabase](https://supabase.com) project.

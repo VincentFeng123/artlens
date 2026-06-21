@@ -49,6 +49,13 @@ export function ScannerScreen({ onCapture, onCancel }: Props) {
         autoPlay
       />
       <div className="scanner__scrim" />
+      <button
+        className="scanner__close"
+        aria-label="Cancel"
+        onClick={onCancel}
+      >
+        ✕
+      </button>
       <div className="reticle" aria-hidden>
         <span className="reticle__corner reticle__corner--tl" />
         <span className="reticle__corner reticle__corner--tr" />
@@ -65,9 +72,6 @@ export function ScannerScreen({ onCapture, onCancel }: Props) {
           onClick={handleCapture}
           disabled={!ready || busy}
         />
-        <button className="btn-ghost" onClick={onCancel}>
-          Cancel
-        </button>
       </div>
     </div>
   )
