@@ -434,12 +434,14 @@ async function generateBlockade(
   // init_image + low init_strength preserves palette AND composition (faithful);
   // BLOCKADE_MODE=remix keeps composition but drops colour.
   const mode = (env.BLOCKADE_MODE ?? 'init').toLowerCase()
-  const initStrength = Number(env.BLOCKADE_INIT_STRENGTH ?? 0.25)
+  const initStrength = Number(env.BLOCKADE_INIT_STRENGTH ?? 0.35)
+  // Blockade caps the text payload at 2200 chars and counts prompt +
+  // negative_text together, so budget both well under that.
   const body: Record<string, unknown> = {
     skybox_style_id: styleId,
-    prompt: prompt.slice(0, 2000),
+    prompt: prompt.slice(0, 1700),
   }
-  if (negative) body.negative_text = negative.slice(0, 2000)
+  if (negative) body.negative_text = negative.slice(0, 300)
   if (mode === 'remix') {
     body.control_image = controlImageBase64
     body.control_model = 'remix'

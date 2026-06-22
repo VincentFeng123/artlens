@@ -3,7 +3,7 @@ import type { PanoramaInput, PanoramaResult } from './index.ts'
 const BASE = 'https://backend.blockadelabs.com/api/v1'
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 180_000
-const DEFAULT_INIT_STRENGTH = 0.25 // Blockade's scale is inverted: lower = stronger artwork influence
+const DEFAULT_INIT_STRENGTH = 0.35 // Blockade's scale is inverted: lower = stronger/more literal artwork influence. 0.35 keeps the palette while letting it build an actual expansive world (not a flat wrap).
 
 interface BlockadeRequest {
   id?: number | string
@@ -38,12 +38,14 @@ export async function generateWithBlockade({
   const mode = (Deno.env.get('BLOCKADE_MODE') ?? 'init').toLowerCase()
   const initStrength = Number(Deno.env.get('BLOCKADE_INIT_STRENGTH') ?? DEFAULT_INIT_STRENGTH)
 
-  // 1) Create — condition on the artwork per mode.
+  // 1) Create — condition on the artwork per mode. Blockade caps the text
+  // payload at 2200 chars (prompt + negative_text counted together), so budget
+  // both well under that.
   const body: Record<string, unknown> = {
     skybox_style_id: styleId,
-    prompt: prompt.slice(0, 2000),
+    prompt: prompt.slice(0, 1700),
   }
-  if (negative) body.negative_text = negative.slice(0, 2000)
+  if (negative) body.negative_text = negative.slice(0, 300)
   if (mode === 'remix') {
     body.control_image = referenceImage
     body.control_model = 'remix'
