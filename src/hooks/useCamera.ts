@@ -4,12 +4,16 @@ export interface UseCamera {
   videoRef: React.RefObject<HTMLVideoElement>
   ready: boolean
   error: string | null
-  /** Draw the current frame to a canvas, downscale to ~1024px, export JPEG. */
+  /** Draw the current frame to a canvas (full stream res), export JPEG. */
   capture: () => Promise<Blob | null>
 }
 
-const MAX_EDGE = 1024
-const JPEG_QUALITY = 0.8
+// Capture at the full camera-stream resolution (~1080p). The corner-detection +
+// rectification pass wants the detail, and the rectified result is the generator's
+// init_image — a 1024px crop looked soft. 2048 is above the 1080p stream so frames
+// pass through un-downscaled.
+const MAX_EDGE = 2048
+const JPEG_QUALITY = 0.92
 
 export function useCamera(): UseCamera {
   const videoRef = useRef<HTMLVideoElement>(null)

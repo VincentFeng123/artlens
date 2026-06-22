@@ -87,6 +87,9 @@ const BASE_NEGATIVES = [
   'frame',
   'border',
   'picture frame',
+  'visible seam',
+  'duplicated edge',
+  'flat painting on a wall',
 ]
 
 /**
@@ -132,12 +135,15 @@ export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
     : ''
 
   const prompt = (
-    `A seamless 360° equirectangular environment you stand inside — ` +
-    `the world this artwork opens onto, continued in every direction.${titleLine}` +
+    `A vast, immersive 360° equirectangular world you are standing in the middle of — ` +
+    `the living world this painting opens onto, extending far past the frame in every ` +
+    `direction with real depth and distance, a place you could walk into.${titleLine}` +
     `${mediumLine}${vantage} ${space}${sceneFallback}${horizon}${persp}${light} ` +
-    `Style: ${r.style}. Mood: ${r.mood}.${palette} ` +
-    `The brushwork carries all the way around with no seam at the horizontal wrap ` +
-    `and no distortion at the zenith or nadir.`
+    `Every surface is hand-painted in this same artistic style — an expansive, atmospheric ` +
+    `scene, NOT a flat copy of the artwork on a wall. Style: ${r.style}. Mood: ${r.mood}.${palette} ` +
+    `Fully seamless: the brushwork wraps all the way around with no visible seam, line or ` +
+    `colour mismatch where the left and right edges meet, and no bright artifacts or ` +
+    `smearing at the zenith or nadir.`
   )
     .replace(/\s+/g, ' ')
     .trim()

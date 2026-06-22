@@ -1,90 +1,80 @@
 import { useCallback, useRef, useState } from 'react'
 import { LandingScreen } from './components/LandingScreen'
 import { ScannerScreen } from './components/ScannerScreen'
+import { AdjustScreen } from './components/AdjustScreen'
 import { LoadingScreen } from './components/LoadingScreen'
 import { WorldViewer } from './components/WorldViewer'
 import { GlassPanel } from './components/GlassPanel'
 import { requestEntryPermissions } from './lib/permissions'
 import { scanArtwork } from './lib/api'
-import { cropToBox } from './lib/crop'
 import type { ArtworkMeta } from '../shared/types'
 
-type Screen = 'landing' | 'scanner' | 'loading' | 'world' | 'error'
+type Screen = 'landing' | 'scanner' | 'adjust' | 'loading' | 'world' | 'error'
 
 interface World {
   url: string
   depthUrl?: string
-  /** Object URL of the captured frame — the real artwork shown inside the world. */
-  artworkUrl?: string
   meta: ArtworkMeta
 }
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [busy, setBusy] = useState(false)
-  const [orientationGranted, setOrientationGranted] = useState(false)
+  const [capture, setCapture] = useState<Blob | null>(null)
   const [world, setWorld] = useState<World | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const abortRef = useRef<AbortController | null>(null)
-  const artworkUrlRef = useRef<string | null>(null)
-
-  const clearArtworkUrl = useCallback(() => {
-    if (artworkUrlRef.current) {
-      URL.revokeObjectURL(artworkUrlRef.current)
-      artworkUrlRef.current = null
-    }
-  }, [])
 
   const handleEnter = useCallback(async () => {
     setBusy(true)
     try {
-      const perms = await requestEntryPermissions()
-      setOrientationGranted(
-        perms.orientation === 'granted' || perms.orientation === 'not-required',
-      )
+      // Primes camera access, and grants the iOS motion permission early so gyro look
+      // works the moment you enter a world (the world also re-asks on first touch).
+      await requestEntryPermissions()
       setScreen('scanner')
     } finally {
       setBusy(false)
     }
   }, [])
 
-  const handleCapture = useCallback(
-    async (jpeg: Blob) => {
-      setScreen('loading')
-      const ac = new AbortController()
-      abortRef.current = ac
-      try {
-        const res = await scanArtwork(jpeg, ac.signal)
-        if (ac.signal.aborted) return
-        // Crop the captured frame down to just the artwork (clean centerpiece).
-        const artworkBlob = await cropToBox(jpeg, res.meta?.artwork_box)
-        if (ac.signal.aborted) return
-        clearArtworkUrl()
-        const artworkUrl = URL.createObjectURL(artworkBlob)
-        artworkUrlRef.current = artworkUrl
-        setWorld({ url: res.panoramaUrl, depthUrl: res.depthUrl, artworkUrl, meta: res.meta })
-        setScreen('world')
-      } catch (e) {
-        if (ac.signal.aborted) return
-        setErrorMsg(e instanceof Error ? e.message : 'Something went wrong.')
-        setScreen('error')
-      }
-    },
-    [clearArtworkUrl],
-  )
+  // Captured a frame → go adjust the artwork corners before generating.
+  const handleCapture = useCallback((jpeg: Blob) => {
+    setCapture(jpeg)
+    setScreen('adjust')
+  }, [])
+
+  // Corners confirmed → rectified artwork goes to the generator (Blockade init_image).
+  const handleAdjustConfirm = useCallback(async (rectified: Blob) => {
+    setScreen('loading')
+    const ac = new AbortController()
+    abortRef.current = ac
+    try {
+      const res = await scanArtwork(rectified, ac.signal)
+      if (ac.signal.aborted) return
+      setWorld({ url: res.panoramaUrl, depthUrl: res.depthUrl, meta: res.meta })
+      setScreen('world')
+    } catch (e) {
+      if (ac.signal.aborted) return
+      setErrorMsg(e instanceof Error ? e.message : 'Something went wrong.')
+      setScreen('error')
+    }
+  }, [])
+
+  const handleRetake = useCallback(() => {
+    abortRef.current?.abort()
+    setScreen('scanner')
+  }, [])
 
   const handleScanAnother = useCallback(() => {
     abortRef.current?.abort()
-    clearArtworkUrl()
     setWorld(null)
     setScreen('scanner')
-  }, [clearArtworkUrl])
+  }, [])
 
   const handleRetry = useCallback(() => {
     abortRef.current?.abort()
-    clearArtworkUrl()
     setScreen('scanner')
-  }, [clearArtworkUrl])
+  }, [])
 
   switch (screen) {
     case 'landing':
@@ -96,6 +86,14 @@ export function App() {
           onCancel={() => setScreen('landing')}
         />
       )
+    case 'adjust':
+      return capture ? (
+        <AdjustScreen
+          capture={capture}
+          onConfirm={handleAdjustConfirm}
+          onRetake={handleRetake}
+        />
+      ) : null
     case 'loading':
       return <LoadingScreen />
     case 'world':
@@ -103,9 +101,7 @@ export function App() {
         <WorldViewer
           panoramaUrl={world.url}
           depthUrl={world.depthUrl}
-          artworkUrl={world.artworkUrl}
           meta={world.meta}
-          orientationGranted={orientationGranted}
           onScanAnother={handleScanAnother}
         />
       ) : null

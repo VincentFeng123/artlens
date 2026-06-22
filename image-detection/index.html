@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#efe9dd" />
+  <title>RECTO — Artwork Rectifier</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23efe9dd'/%3E%3Ctext x='16' y='24' font-family='monospace' font-size='22' text-anchor='middle' fill='%23cc3b1f'%3E%E2%8C%90%3C/text%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- film-grain + vignette atmosphere -->
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <div class="mark">
+      <span class="mark__glyph" aria-hidden="true">⌐</span>
+      <h1 class="mark__word">RECTO</h1>
+    </div>
+    <p class="mark__sub">Artwork&nbsp;Rectifier <span class="dot">·</span> photo&nbsp;→&nbsp;flat&nbsp;print</p>
+  </header>
+
+  <nav class="steps" aria-label="progress">
+    <span class="step" data-step="upload">01 — Capture</span>
+    <span class="step" data-step="edit">02 — Adjust&nbsp;corners</span>
+    <span class="step" data-step="result">03 — Export</span>
+  </nav>
+
+  <main class="stage">
+    <!-- ── 01 UPLOAD ───────────────────────────────────────── -->
+    <section id="view-upload" class="view view--upload is-active">
+      <label id="drop" class="drop" for="file-input">
+        <span class="drop__corner drop__corner--tl"></span>
+        <span class="drop__corner drop__corner--tr"></span>
+        <span class="drop__corner drop__corner--bl"></span>
+        <span class="drop__corner drop__corner--br"></span>
+
+        <span class="drop__icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="6.5" y="9.5" width="35" height="29" rx="1" transform="rotate(-4 24 24)" />
+            <path d="M12 31l8-8 6 5 6-7 7 8" transform="rotate(-4 24 24)" />
+            <circle cx="18" cy="18" r="2.4" transform="rotate(-4 24 24)" />
+          </svg>
+        </span>
+        <span class="drop__title">Drop a photo of your artwork</span>
+        <span class="drop__hint">or tap to take a photo / choose from library</span>
+        <input id="file-input" type="file" accept="image/*" capture="environment" hidden />
+      </label>
+
+      <p class="note">
+        Everything runs privately in your browser — nothing is uploaded to a server.
+      </p>
+    </section>
+
+    <!-- ── 02 EDIT ─────────────────────────────────────────── -->
+    <section id="view-edit" class="view view--edit">
+      <div class="canvas-wrap">
+        <canvas id="editor-canvas"></canvas>
+      </div>
+      <p class="hint-line">Drag the four corners onto the edges of the artwork.</p>
+      <div class="toolbar">
+        <button class="btn" id="btn-redetect" type="button">Re-detect</button>
+        <button class="btn" id="btn-rotate" type="button">Rotate 90°</button>
+        <button class="btn" id="btn-restart" type="button">New photo</button>
+        <button class="btn btn--primary" id="btn-flatten" type="button">Flatten →</button>
+      </div>
+    </section>
+
+    <!-- ── 03 RESULT ───────────────────────────────────────── -->
+    <section id="view-result" class="view view--result">
+      <div class="plate">
+        <div class="plate__frame">
+          <canvas id="result-canvas"></canvas>
+        </div>
+        <p class="plate__caption" id="result-caption">Rectified artwork</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="btn-adjust" type="button">← Adjust again</button>
+        <button class="btn" id="btn-new" type="button">New photo</button>
+        <button class="btn btn--primary" id="btn-download" type="button">Download</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- loading / status veil -->
+  <div id="veil" class="veil is-active">
+    <div class="veil__inner">
+      <div class="veil__bars"><i></i><i></i><i></i><i></i></div>
+      <p class="veil__text" id="veil-text">Loading the rectifier engine…</p>
+      <p class="veil__sub" id="veil-sub">First load fetches ~8&nbsp;MB of OpenCV — hang tight.</p>
+    </div>
+  </div>
+
+  <footer class="colophon">
+    <span>RECTO</span><span>·</span><span>client-side OpenCV</span><span>·</span><span id="ip-hint">same-wifi ready</span>
+  </footer>
+
+  <!-- ── computer-vision engines (globals: cv, jscanify) ── -->
+  <script async src="vendor/opencv.js"></script>
+  <script async src="vendor/jscanify.js"></script>
+
+  <!-- ── app ── -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

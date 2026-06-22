@@ -49,6 +49,7 @@ export function createLookControls(
   const lookTarget = new THREE.Vector3()
 
   const onPointerDown = (e: PointerEvent) => {
+    askMotionPermission() // first natural touch unlocks gyro look on iOS (no button)
     dragging = true
     lastX = e.clientX
     lastY = e.clientY
@@ -119,13 +120,42 @@ export function createLookControls(
     screenAngle = readScreenAngle()
   }
 
-  let deviceEnabled = false
-  const enableDeviceOrientation = () => {
-    if (deviceEnabled) return
-    deviceEnabled = true
+  // Bind BOTH event names: some Androids leave `deviceorientation` null and only
+  // populate `deviceorientationabsolute`, so listening to just one silently fails.
+  let listenersOn = false
+  const attachOrientation = () => {
+    if (listenersOn) return
+    listenersOn = true
     window.addEventListener('deviceorientation', onDeviceOrientation)
+    window.addEventListener('deviceorientationabsolute', onDeviceOrientation as EventListener)
     window.addEventListener('orientationchange', onScreenOrientation)
     screen.orientation?.addEventListener('change', onScreenOrientation)
+  }
+
+  // iOS 13+ gates the sensor behind a permission that MUST be requested from a user
+  // gesture. We ask on the first touch in the world (the user's natural drag), so
+  // gyro look turns on by itself — no button. No-op on Android / desktop.
+  let motionAsked = false
+  const askMotionPermission = () => {
+    if (motionAsked) return
+    const DOE = typeof window !== 'undefined' ? window.DeviceOrientationEvent : undefined
+    if (DOE && typeof DOE.requestPermission === 'function') {
+      motionAsked = true
+      DOE.requestPermission()
+        .then((r) => {
+          if (r === 'granted') attachOrientation()
+          else motionAsked = false // let a later gesture retry
+        })
+        .catch(() => {
+          motionAsked = false
+        })
+    }
+  }
+
+  // Called by the Skybox at mount: attach immediately (works on Android, and on iOS
+  // once permission is granted — by the landing screen or the first touch above).
+  const enableDeviceOrientation = () => {
+    attachOrientation()
   }
 
   // ── Per-frame ────────────────────────────────────────────────────────────
@@ -201,6 +231,7 @@ export function createLookControls(
     dom.removeEventListener('pointercancel', onPointerUp)
     window.removeEventListener('pointermove', onPointerParallax)
     window.removeEventListener('deviceorientation', onDeviceOrientation)
+    window.removeEventListener('deviceorientationabsolute', onDeviceOrientation as EventListener)
     window.removeEventListener('orientationchange', onScreenOrientation)
     screen.orientation?.removeEventListener('change', onScreenOrientation)
   }

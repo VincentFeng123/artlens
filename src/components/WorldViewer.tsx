@@ -15,11 +15,7 @@ interface Props {
   panoramaUrl: string
   /** Equirectangular depth PNG for parallax; when absent, computed in-browser. */
   depthUrl?: string
-  /** The real scanned artwork, shown flat inside the world at the focal center. */
-  artworkUrl?: string
   meta: ArtworkMeta
-  /** Whether device-orientation control may be enabled (permission granted). */
-  orientationGranted: boolean
   onScanAnother: () => void
 }
 
@@ -58,9 +54,7 @@ function avgPaletteColor(palette: string[]): number {
 export function WorldViewer({
   panoramaUrl,
   depthUrl,
-  artworkUrl,
   meta,
-  orientationGranted,
   onScanAnother,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -100,15 +94,10 @@ export function WorldViewer({
     const host = hostRef.current
     if (!host) return
 
-    const sky = new Skybox(host, { enableDeviceOrientation: orientationGranted })
+    const sky = new Skybox(host)
     let cancelled = false
 
     sky.setAtmosphere({ color: avgPaletteColor(meta.palette), mood: meta.mood })
-
-    // The real scanned artwork, flat at the focal centre of the world.
-    if (artworkUrl) {
-      sky.setArtwork(artworkUrl).catch((e) => console.warn('artwork load failed', e))
-    }
 
     void (async () => {
       try {
@@ -169,7 +158,7 @@ export function WorldViewer({
       window.clearInterval(probe)
       sky.dispose()
     }
-  }, [panoramaUrl, depthUrl, artworkUrl, orientationGranted])
+  }, [panoramaUrl, depthUrl])
 
   // Close the sheet on Escape.
   useEffect(() => {
@@ -419,7 +408,7 @@ export function WorldViewer({
       </header>
 
       <p className="world__hint" style={{ opacity: 1 - openness }}>
-        {mode === 'device' ? 'Move your phone to look around' : 'Drag to look around'}
+        {mode === 'device' ? 'Move your phone to look around' : 'Drag — or move your phone — to look around'}
       </p>
 
       {/* Dimming backdrop, revealed as the sheet rises */}

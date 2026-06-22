@@ -18,3 +18,11 @@ dist-ssr
 # supabase
 supabase/.temp
 supabase/.branches
+
+# claude session artifacts / lockfiles
+.claude/scheduled_tasks.lock
+**/.claude/scheduled_tasks.lock
+*.lock
+
+# large local test samples (kept on disk, not versioned)
+image-detection/samples/

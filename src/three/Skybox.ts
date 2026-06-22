@@ -3,19 +3,16 @@ import { createLookControls, type LookControls, type LookMode } from './DeviceOr
 import { Atmosphere } from './Atmosphere'
 
 export interface SkyboxOptions {
-  /** Attach device-orientation control immediately (permission already granted). */
-  enableDeviceOrientation?: boolean
   /** Long-edge cap for the panorama texture (mobile GPU memory). Default 4096. */
   maxTextureSize?: number
 }
 
-const BASE_FOV = 75
-const ENTRY_FOV = 84
+const BASE_FOV = 75 // vertical fov in landscape (gives a wide horizontal there)
+const PORTRAIT_HFOV = 92 // target HORIZONTAL fov on a tall phone, else it goes telephoto-narrow
+const FOV_MAX = 100 // cap the vertical fov so portrait never fisheyes
+const ENTRY_EXTRA = 9 // entry starts this much wider, easing in to the target fov
 const ENTRY_MS = 750
 const DISPLACE_LERP = 0.06 // per-frame ease of the depth "inflate"
-const ARTWORK_DIST = 300 // depth of the real artwork plane (just inside the nearest world content)
-const ARTWORK_HFOV = 60 // horizontal field of view the artwork occupies, in degrees
-const ARTWORK_FEATHER = 0.16 // edge feather as a fraction of the shorter side
 
 /** Device capability tier — chooses tessellation, pixel ratio, parallax + motes. */
 interface Tier {
@@ -57,7 +54,6 @@ export class Skybox {
   private depthTexture: THREE.Texture | null = null
   private readonly fallbackDepth: THREE.DataTexture
   private atmosphere: Atmosphere | null = null
-  private artwork: { mesh: THREE.Mesh; geometry: THREE.PlaneGeometry; material: THREE.MeshBasicMaterial; texture: THREE.Texture } | null = null
   private disposed = false
   private lastFrame = 0
   private raf = 0
@@ -97,6 +93,7 @@ export class Skybox {
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.tier.pixelCap))
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
+    this.renderer.setClearColor(0x05050c, 1) // dark, so a seam/pole gap never flashes bright
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 1000)
@@ -118,7 +115,9 @@ export class Skybox {
 
     this.controls = createLookControls(this.camera, this.canvas)
     this.controls.setParallax(this.tier.parallax > 0, this.tier.parallax)
-    if (opts.enableDeviceOrientation) this.controls.enableDeviceOrientation()
+    // Always wire gyro look: it activates by itself on Android, and on iOS after the
+    // landing-screen permission or the user's first touch (no button needed).
+    this.controls.enableDeviceOrientation()
 
     this.resize()
     window.addEventListener('resize', this.onResize)
@@ -139,50 +138,6 @@ export class Skybox {
     })
   }
 
-  /**
-   * Place the real scanned artwork inside the world as a perfectly flat, borderless
-   * plane at a finite depth. It lives *in* the depth field (parallaxes with the
-   * camera) but is never displaced, so the painting stays flat and crisp while the
-   * generated environment blooms from its feathered edges.
-   */
-  async setArtwork(url: string): Promise<void> {
-    const img = await loadImage(url)
-    if (this.disposed) return
-    const canvas = featherArtwork(img, ARTWORK_FEATHER)
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.minFilter = THREE.LinearFilter
-    texture.magFilter = THREE.LinearFilter
-    texture.generateMipmaps = false
-    texture.needsUpdate = true
-
-    const w = 2 * ARTWORK_DIST * Math.tan(THREE.MathUtils.degToRad(ARTWORK_HFOV) / 2)
-    const h = w * (img.naturalHeight / Math.max(1, img.naturalWidth))
-    const geometry = new THREE.PlaneGeometry(w, h)
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      depthWrite: false,
-      fog: false,
-      side: THREE.DoubleSide, // safety: always visible regardless of facing
-    })
-    const mesh = new THREE.Mesh(geometry, material)
-    // Sit at the initial forward direction (+X). Rotate so the plane's front (+Z)
-    // points back toward the camera at the origin (−X), upright and un-mirrored.
-    mesh.position.set(ARTWORK_DIST, 0, 0)
-    mesh.rotation.y = -Math.PI / 2
-    mesh.renderOrder = 2
-
-    this.artwork?.material.dispose()
-    this.artwork?.geometry.dispose()
-    this.artwork?.texture.dispose()
-    if (this.artwork) this.scene.remove(this.artwork.mesh)
-
-    this.artwork = { mesh, geometry, material, texture }
-    this.scene.add(mesh)
-  }
-
   enableDeviceOrientation(): void {
     this.controls.enableDeviceOrientation()
   }
@@ -194,6 +149,7 @@ export class Skybox {
   /** Load an equirectangular panorama (remote or local) as the skybox texture. */
   async loadPanorama(url: string): Promise<void> {
     const img = await loadImage(url)
+    if (this.disposed) return // unmounted while the image was loading
     const source = downscaleIfNeeded(img, this.maxTextureSize)
 
     const texture = new THREE.Texture(source)
@@ -201,6 +157,7 @@ export class Skybox {
     texture.minFilter = THREE.LinearFilter
     texture.magFilter = THREE.LinearFilter
     texture.generateMipmaps = false
+    texture.wrapS = THREE.RepeatWrapping // sample across the ±180° join → no edge seam
     texture.needsUpdate = true
 
     const previous = this.texture
@@ -274,7 +231,8 @@ export class Skybox {
             '  d = uDepthSign > 0.0 ? d : (1.0 - d);', // standardize: brighter = nearer
             '  float lat = abs(uv.y - 0.5) * 2.0;', // 0 at equator, 1 at poles
             '  float poleW = 1.0 - smoothstep(1.0 - uPoleFade, 1.0, lat);',
-            '  float disp = d * uDisplace * poleW;', // near content pulled inward
+            '  float seamW = smoothstep(0.0, uSeamEps, min(uv.x, 1.0 - uv.x));', // 0 at the wrap
+            '  float disp = d * uDisplace * poleW * seamW;', // fade to 0 at the seam so the wrap edges never separate
             '  transformed -= normalize(position) * disp;',
             '}',
             '#endif',
@@ -288,7 +246,22 @@ export class Skybox {
     const h = this.container.clientHeight || window.innerHeight
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
+    if (!this.entering) this.camera.fov = this.targetFov()
     this.camera.updateProjectionMatrix()
+  }
+
+  /**
+   * Comfortable vertical fov for the current aspect. A tall portrait phone at a
+   * fixed 75° vertical fov only shows a ~39° horizontal slice — the world reads as
+   * tiny and zoomed-in. In portrait we aim for a wide HORIZONTAL fov and derive the
+   * vertical from it (capped so it never fisheyes). Landscape keeps the base fov.
+   */
+  private targetFov(): number {
+    const aspect = this.camera.aspect || 1
+    if (aspect >= 1) return BASE_FOV
+    const h = THREE.MathUtils.degToRad(PORTRAIT_HFOV)
+    const v = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h / 2) / aspect))
+    return Math.min(v, FOV_MAX)
   }
 
   private start(): void {
@@ -306,11 +279,11 @@ export class Skybox {
       this.displaceCur += (this.displaceTarget - this.displaceCur) * DISPLACE_LERP
       this.depthU.uDisplace.value = this.displaceCur
 
-      // Entry FOV pull-in.
+      // Entry FOV pull-in: start a touch wider than the target and ease in.
       if (this.entering) {
         const t = Math.min(1, (nowMs() - this.entryStart) / ENTRY_MS)
         const e = 1 - Math.pow(1 - t, 3) // easeOutCubic
-        this.camera.fov = ENTRY_FOV + (BASE_FOV - ENTRY_FOV) * e
+        this.camera.fov = this.targetFov() + ENTRY_EXTRA * (1 - e)
         this.camera.updateProjectionMatrix()
         if (t >= 1) this.entering = false
       }
@@ -350,12 +323,6 @@ export class Skybox {
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.onResize)
     this.atmosphere?.dispose()
-    if (this.artwork) {
-      this.scene.remove(this.artwork.mesh)
-      this.artwork.geometry.dispose()
-      this.artwork.material.dispose()
-      this.artwork.texture.dispose()
-    }
     this.controls.dispose()
     this.texture?.dispose()
     this.depthTexture?.dispose()
@@ -392,51 +359,6 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
     img.src = url
   })
-}
-
-/**
- * Draw the artwork to a canvas and feather its four edges to transparent so it
- * melts (borderless) into the surrounding world. Uses `destination-out`, which
- * only lowers alpha toward the edges and leaves RGB intact — no dark fringe.
- */
-function featherArtwork(
-  img: HTMLImageElement,
-  featherFrac: number,
-  maxEdge = 1024,
-): HTMLCanvasElement {
-  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight))
-  const w = Math.max(1, Math.round(img.naturalWidth * scale))
-  const h = Math.max(1, Math.round(img.naturalHeight * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, 0, 0, w, h)
-
-  const f = Math.max(1, Math.round(Math.min(w, h) * featherFrac))
-  ctx.globalCompositeOperation = 'destination-out'
-  const erase = (
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
-    rw: number,
-    rh: number,
-    rx: number,
-    ry: number,
-  ) => {
-    const g = ctx.createLinearGradient(x0, y0, x1, y1)
-    g.addColorStop(0, 'rgba(0,0,0,1)') // fully erase at the very edge
-    g.addColorStop(1, 'rgba(0,0,0,0)') // keep inward
-    ctx.fillStyle = g
-    ctx.fillRect(rx, ry, rw, rh)
-  }
-  erase(0, 0, f, 0, f, h, 0, 0) // left
-  erase(w, 0, w - f, 0, f, h, w - f, 0) // right
-  erase(0, 0, 0, f, w, f, 0, 0) // top
-  erase(0, h, 0, h - f, w, f, 0, h - f) // bottom
-  ctx.globalCompositeOperation = 'source-over'
-  return canvas
 }
 
 function downscaleIfNeeded(
