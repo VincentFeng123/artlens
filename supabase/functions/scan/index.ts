@@ -8,6 +8,7 @@ import {
 import { getPanoramaProvider, hasPanoramaProvider } from '../_shared/panorama/index.ts'
 import { buildArtworkMeta, buildScenePrompt, DEMO_META } from '../_shared/prompt.ts'
 import type { RecognitionResult } from '../_shared/types.ts'
+import { routeRealization } from '../_shared/realization/route.ts'
 
 // Relative path — the client resolves it against the app origin, which serves
 // the bundled demo panorama. Used whenever generation can't (or needn't) run.
@@ -58,13 +59,26 @@ Deno.serve(async (req) => {
   const meta = buildArtworkMeta(recognition)
   const title = meta.title
   const artist = meta.artist
+  const realization = routeRealization({
+    scene_type: recognition.scene_type,
+    figure_coverage: recognition.figure_coverage,
+    depth_profile: recognition.depth_profile,
+    confidence: recognition.confidence,
+  })
+  console.log('realization route', {
+    title,
+    realization,
+    scene_type: recognition.scene_type,
+    figure_coverage: recognition.figure_coverage,
+    depth_profile: recognition.depth_profile,
+  })
   const admin = adminClient()
 
   // 2) Cache lookup (only trust confidently recognized works).
   if (recognition.recognized) {
     const { data: hit } = await admin
       .from('artworks')
-      .select('id, title, artist, panorama_url, depth_url')
+      .select('id, title, artist, panorama_url, depth_url, realization')
       .ilike('title', title)
       .ilike('artist', artist)
       .not('panorama_url', 'is', null)
@@ -75,6 +89,7 @@ Deno.serve(async (req) => {
         status: 'ready',
         panorama_url: hit.panorama_url,
         depth_url: hit.depth_url ?? null,
+        realization: hit.realization ?? realization,
         title: hit.title ?? title,
         artist: hit.artist ?? artist,
         meta: { ...meta, title: hit.title ?? title, artist: hit.artist ?? artist },
@@ -108,6 +123,7 @@ Deno.serve(async (req) => {
       artist,
       reference_image_url: referenceUrl,
       scene_prompt: scenePrompt,
+      realization,
     })
     .select('id')
     .single()
@@ -120,7 +136,7 @@ Deno.serve(async (req) => {
   // 6) Create a job and run generation in the background.
   const { data: job, error: jobErr } = await admin
     .from('jobs')
-    .insert({ artwork_id: artwork?.id ?? null, status: 'pending' })
+    .insert({ artwork_id: artwork?.id ?? null, status: 'pending', realization })
     .select('id')
     .single()
   if (jobErr || !job) {
@@ -144,7 +160,7 @@ Deno.serve(async (req) => {
 
   // Recognition is already done — hand the dossier to the client to hold while
   // it polls job-status for the panorama.
-  return json({ status: 'generating', job_id: job.id, title, artist, meta })
+  return json({ status: 'generating', job_id: job.id, title, artist, meta, realization })
 })
 
 interface GenerationArgs {
