@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { Skybox } from '../three/Skybox'
 import type { LookMode } from '../three/DeviceOrientationController'
-import type { ArtworkMeta, GlossaryTerm, SymbolNote } from '../../shared/types'
+import type { ArtworkMeta, GlossaryTerm, Realization, SymbolNote } from '../../shared/types'
 import { paletteColor } from '../lib/paletteColor'
 import { cropManyToBoxes } from '../lib/crop'
 
@@ -16,6 +16,12 @@ interface Props {
   panoramaUrl: string
   /** Equirectangular depth PNG for parallax; when absent, computed in-browser. */
   depthUrl?: string
+  /**
+   * Render strategy from the router. 'flat' suppresses depth displacement so a
+   * prominent figure isn't rubber-sheeted; undefined/'depth' keep today's
+   * behavior. ('layered' is Milestone B and also keeps depth for now.)
+   */
+  realization?: Realization
   meta: ArtworkMeta
   /**
    * The flattened, straight-on artwork — the exact image recognition saw, so
@@ -61,6 +67,7 @@ function avgPaletteColor(palette: string[]): number {
 export function WorldViewer({
   panoramaUrl,
   depthUrl,
+  realization,
   meta,
   sourceImage,
   onScanAnother,
@@ -141,7 +148,10 @@ export function WorldViewer({
             return true
           }
         })()
-        if (!depthEnabled) return
+        // Flat-figure guard: when the router chose 'flat' (e.g. a prominent
+        // figure), never bind depth — the single connected mesh would smear the
+        // silhouette under parallax. Leave the sphere flat.
+        if (!depthEnabled || realization === 'flat') return
 
         if (depthUrl) {
           sky.loadDepth(depthUrl).catch((e) =>
@@ -173,7 +183,7 @@ export function WorldViewer({
       window.clearInterval(probe)
       sky.dispose()
     }
-  }, [panoramaUrl, depthUrl])
+  }, [panoramaUrl, depthUrl, realization])
 
   // Escape closes the loupe first if it's up, otherwise the sheet.
   useEffect(() => {

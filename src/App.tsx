@@ -7,13 +7,14 @@ import { WorldViewer } from './components/WorldViewer'
 import { GlassPanel } from './components/GlassPanel'
 import { requestEntryPermissions } from './lib/permissions'
 import { scanArtwork } from './lib/api'
-import type { ArtworkMeta } from '../shared/types'
+import type { ArtworkMeta, Realization } from '../shared/types'
 
 type Screen = 'landing' | 'scanner' | 'adjust' | 'loading' | 'world' | 'error'
 
 interface World {
   url: string
   depthUrl?: string
+  realization?: Realization
   meta: ArtworkMeta
 }
 
@@ -55,7 +56,12 @@ export function App() {
     try {
       const res = await scanArtwork(rectified, ac.signal)
       if (ac.signal.aborted) return
-      setWorld({ url: res.panoramaUrl, depthUrl: res.depthUrl, meta: res.meta })
+      setWorld({
+        url: res.panoramaUrl,
+        depthUrl: res.depthUrl,
+        meta: res.meta,
+        realization: res.realization,
+      })
       setScreen('world')
     } catch (e) {
       if (ac.signal.aborted) return
@@ -107,6 +113,7 @@ export function App() {
         <WorldViewer
           panoramaUrl={world.url}
           depthUrl={world.depthUrl}
+          realization={world.realization}
           meta={world.meta}
           sourceImage={sourceImage ?? undefined}
           onScanAnother={handleScanAnother}

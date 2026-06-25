@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { ArtworkMeta, JobStatusResponse, ScanResponse } from '../../shared/types'
+import type { ArtworkMeta, JobStatusResponse, Realization, ScanResponse } from '../../shared/types'
 import { DEMO_META } from '../../shared/prompt'
 
 const DEMO_PANORAMA = '/demo-panorama.png'
@@ -10,6 +10,8 @@ export interface ScanOutcome {
   panoramaUrl: string
   /** Equirectangular depth PNG URL for parallax; undefined when none (client computes it). */
   depthUrl?: string
+  /** Render strategy from the router; undefined → use the client default. */
+  realization?: Realization
   title: string
   artist: string
   demo: boolean
@@ -94,6 +96,7 @@ async function scanViaDevApi(
     return {
       panoramaUrl: data.panorama_url,
       depthUrl: data.depth_url ?? undefined,
+      realization: data.realization,
       title: data.title,
       artist: data.artist,
       demo: Boolean(data.demo),
@@ -113,6 +116,7 @@ async function scanViaDevApi(
   return {
     panoramaUrl: job.panorama_url,
     depthUrl: job.depth_url ?? undefined,
+    realization: job.realization ?? data.realization,
     title,
     artist,
     demo: false,
@@ -159,6 +163,7 @@ async function scanViaEdge(
     return {
       panoramaUrl: data.panorama_url,
       depthUrl: data.depth_url ?? undefined,
+      realization: data.realization,
       title: data.title,
       artist: data.artist,
       demo: Boolean(data.demo),
@@ -178,6 +183,7 @@ async function scanViaEdge(
   return {
     panoramaUrl: job.panorama_url,
     depthUrl: job.depth_url ?? undefined,
+    realization: job.realization ?? data.realization,
     title,
     artist,
     demo: false,
