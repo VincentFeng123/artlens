@@ -15,7 +15,7 @@ describe('routeRealization', () => {
 
   it('renders abstract art flat', () => {
     expect(
-      routeRealization({ scene_type: 'abstract', figure_coverage: 0, depth_profile: 'flat' }),
+      routeRealization({ scene_type: 'abstract', figure_coverage: 0, depth_profile: 'far-with-near-foreground' }),
     ).toBe('flat')
   })
 
