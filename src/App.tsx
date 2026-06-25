@@ -21,6 +21,9 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [busy, setBusy] = useState(false)
   const [capture, setCapture] = useState<Blob | null>(null)
+  // The flattened, straight-on artwork — the exact image recognition saw, so its
+  // bounding boxes line up. Retained to crop real fragments into the info sheet.
+  const [sourceImage, setSourceImage] = useState<Blob | null>(null)
   const [world, setWorld] = useState<World | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const abortRef = useRef<AbortController | null>(null)
@@ -45,6 +48,7 @@ export function App() {
 
   // Corners confirmed → rectified artwork goes to the generator (Blockade init_image).
   const handleAdjustConfirm = useCallback(async (rectified: Blob) => {
+    setSourceImage(rectified) // keep the flat artwork to crop details from
     setScreen('loading')
     const ac = new AbortController()
     abortRef.current = ac
@@ -62,12 +66,14 @@ export function App() {
 
   const handleRetake = useCallback(() => {
     abortRef.current?.abort()
+    setSourceImage(null)
     setScreen('scanner')
   }, [])
 
   const handleScanAnother = useCallback(() => {
     abortRef.current?.abort()
     setWorld(null)
+    setSourceImage(null)
     setScreen('scanner')
   }, [])
 
@@ -102,6 +108,7 @@ export function App() {
           panoramaUrl={world.url}
           depthUrl={world.depthUrl}
           meta={world.meta}
+          sourceImage={sourceImage ?? undefined}
           onScanAnother={handleScanAnother}
         />
       ) : null

@@ -8,14 +8,21 @@ import {
 } from 'react'
 import { Skybox } from '../three/Skybox'
 import type { LookMode } from '../three/DeviceOrientationController'
-import type { ArtworkMeta } from '../../shared/types'
+import type { ArtworkMeta, GlossaryTerm, SymbolNote } from '../../shared/types'
 import { paletteColor } from '../lib/paletteColor'
+import { cropManyToBoxes } from '../lib/crop'
 
 interface Props {
   panoramaUrl: string
   /** Equirectangular depth PNG for parallax; when absent, computed in-browser. */
   depthUrl?: string
   meta: ArtworkMeta
+  /**
+   * The flattened, straight-on artwork — the exact image recognition saw, so
+   * symbolism boxes line up. Used to crop real fragments into the sheet; absent
+   * for demo/cached worlds, in which case those rows fall back to text only.
+   */
+  sourceImage?: Blob
   onScanAnother: () => void
 }
 
@@ -55,12 +62,20 @@ export function WorldViewer({
   panoramaUrl,
   depthUrl,
   meta,
+  sourceImage,
   onScanAnother,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<LookMode>('pointer')
   const [failed, setFailed] = useState(false)
+
+  // Detail crops live behind the sheet: generate once it's first opened (a closed
+  // scan pays nothing), then keep them. `loupe` holds the URL of an enlarged crop.
+  const [hasOpened, setHasOpened] = useState(false)
+  const symbolCrops = useSymbolCrops(sourceImage, meta.symbolism, hasOpened)
+  const [loupe, setLoupe] = useState<string | null>(null)
+  const [activeColor, setActiveColor] = useState<number | null>(null)
 
   // Bottom-sheet state: `open` is the snapped target; `dragP` is the live
   // openness (0..1) while a drag is in flight (null when settled).
@@ -160,21 +175,25 @@ export function WorldViewer({
     }
   }, [panoramaUrl, depthUrl])
 
-  // Close the sheet on Escape.
+  // Escape closes the loupe first if it's up, otherwise the sheet.
   useEffect(() => {
-    if (!open) return
+    if (!open && !loupe) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key !== 'Escape') return
+      if (loupe) setLoupe(null)
+      else setOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, loupe])
 
   // Un-park the instant we open; re-park once the close animation has settled
   // (covers backdrop/Escape closes that don't go through the pointer handlers).
   useEffect(() => {
-    if (open) unpark()
-    else {
+    if (open) {
+      unpark()
+      setHasOpened(true)
+    } else {
       schedulePark()
       setAtTop(false) // round the corners as soon as it leaves the top
     }
@@ -357,13 +376,10 @@ export function WorldViewer({
       : 'Interpreted scene'
   // Glance line: a hook, never metadata.
   const glance = meta.hook || meta.story || 'Step inside the painting'
+  // Symbolism + hidden details now sit in the lean-in (above the divider), so the
+  // "Go deeper" rule marks only the deep prose cuts below it.
   const hasRabbitHole = Boolean(
-    meta.symbolism.length ||
-      meta.hidden_details.length ||
-      meta.process ||
-      meta.why_made ||
-      meta.legacy ||
-      meta.debates,
+    meta.process || meta.why_made || meta.legacy || meta.debates,
   )
   const hasCatalog = Boolean(
     meta.year ||
@@ -373,6 +389,10 @@ export function WorldViewer({
       meta.provenance ||
       meta.style,
   )
+  const glossary = meta.glossary ?? []
+  const paletteNotes = meta.palette_notes ?? []
+  // First-occurrence-only across the whole card: a term is chipped once, topmost.
+  const usedTerms = new Set<string>()
 
   return (
     <div className="screen world fade-enter">
@@ -474,6 +494,17 @@ export function WorldViewer({
             <span className="world__handle world__handle--card" />
           </div>
 
+          {/* Progressive-blur top bar: stacked blur layers (increasing radius
+              toward the top) + an opaque tint lip, so content blurs and dissolves
+              into the bar under the handle — never a hard cut. */}
+          <div className="world__topbar" aria-hidden>
+            <div className="world__blur world__blur--1" />
+            <div className="world__blur world__blur--2" />
+            <div className="world__blur world__blur--3" />
+            <div className="world__blur world__blur--4" />
+            <div className="world__topbar-tint" />
+          </div>
+
           <div className="world__scroll" ref={scrollRef}>
             <header className="world__hero">
               <p className="world__eyebrow">{eyebrow}</p>
@@ -482,18 +513,72 @@ export function WorldViewer({
               {meta.hook && <p className="world__hook">{meta.hook}</p>}
             </header>
 
-            {/* Lean-in: the story + how it was made */}
+            {/* Lean-in: the story */}
             {meta.story && (
               <Section label="The story">
-                <p className="world__prose">{meta.story}</p>
+                <p className="world__prose">
+                  {injectGlossary(meta.story, glossary, usedTerms)}
+                </p>
+              </Section>
+            )}
+
+            {/* The visual heart: each symbol as a real fragment of the painting,
+                plus a tap-to-reveal "did you notice". Lives in the lean-in now. */}
+            {(meta.symbolism.length > 0 || meta.hidden_details.length > 0) && (
+              <Section label="What you're really seeing">
+                {meta.symbolism.length > 0 && (
+                  <ul className="world__sym">
+                    {meta.symbolism.map((s, i) => {
+                      const crop = symbolCrops[i]
+                      return (
+                        <li key={i} className="world__sym-item">
+                          {crop && (
+                            <button
+                              type="button"
+                              className="world__sym-thumb-btn"
+                              aria-label={`Enlarge detail: ${s.detail}`}
+                              onClick={() => setLoupe(crop)}
+                            >
+                              <img
+                                className="world__sym-thumb"
+                                src={crop}
+                                alt={s.detail}
+                                loading="lazy"
+                              />
+                            </button>
+                          )}
+                          <span className="world__sym-text">
+                            <span className="world__sym-detail">{s.detail}</span>
+                            <span className="world__sym-meaning">{s.meaning}</span>
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                {meta.hidden_details.length > 0 && (
+                  <ul className="world__missed">
+                    {meta.hidden_details.map((d, i) => (
+                      <li key={i}>
+                        <HiddenDetail text={d} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </Section>
             )}
 
             {(meta.brushwork || meta.materiality || meta.scale_note) && (
               <Section label="How it was made">
-                {meta.brushwork && <p className="world__prose">{meta.brushwork}</p>}
+                {meta.brushwork && (
+                  <p className="world__prose">
+                    {injectGlossary(meta.brushwork, glossary, usedTerms)}
+                  </p>
+                )}
                 {meta.materiality && (
-                  <p className="world__prose">{meta.materiality}</p>
+                  <p className="world__prose">
+                    {injectGlossary(meta.materiality, glossary, usedTerms)}
+                  </p>
                 )}
                 {meta.scale_note && <p className="world__note">{meta.scale_note}</p>}
               </Section>
@@ -502,16 +587,39 @@ export function WorldViewer({
             {meta.palette.length > 0 && (
               <Section label="Palette">
                 <ul className="world__palette">
-                  {meta.palette.map((c, i) => (
-                    <li key={i} className="world__swatch">
-                      <span
-                        className="world__swatch-chip"
-                        style={{ background: paletteColor(c) }}
-                      />
-                      <span className="world__swatch-name">{c}</span>
-                    </li>
-                  ))}
+                  {meta.palette.map((c, i) => {
+                    const note = paletteNotes[i]
+                    const active = activeColor === i
+                    const chip = (
+                      <>
+                        <span
+                          className="world__swatch-chip"
+                          style={{ background: paletteColor(c) }}
+                        />
+                        <span className="world__swatch-name">{c}</span>
+                      </>
+                    )
+                    return (
+                      <li key={i} className="world__swatch">
+                        {note ? (
+                          <button
+                            type="button"
+                            className={`world__swatch-btn${active ? ' is-active' : ''}`}
+                            aria-expanded={active}
+                            onClick={() => setActiveColor(active ? null : i)}
+                          >
+                            {chip}
+                          </button>
+                        ) : (
+                          <span className="world__swatch-btn">{chip}</span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
+                {activeColor != null && paletteNotes[activeColor] && (
+                  <p className="world__swatch-note">{paletteNotes[activeColor]}</p>
+                )}
               </Section>
             )}
 
@@ -522,47 +630,33 @@ export function WorldViewer({
               </div>
             )}
 
-            {(meta.symbolism.length > 0 || meta.hidden_details.length > 0) && (
-              <Section label="What you're really seeing">
-                {meta.symbolism.length > 0 && (
-                  <ul className="world__sym">
-                    {meta.symbolism.map((s, i) => (
-                      <li key={i} className="world__sym-item">
-                        <span className="world__sym-detail">{s.detail}</span>
-                        <span className="world__sym-meaning">{s.meaning}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {meta.hidden_details.length > 0 && (
-                  <ul className="world__missed">
-                    {meta.hidden_details.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-            )}
-
             {meta.process && (
               <Section label="Underneath">
-                <p className="world__prose">{meta.process}</p>
+                <p className="world__prose">
+                  {injectGlossary(meta.process, glossary, usedTerms)}
+                </p>
               </Section>
             )}
 
             {meta.why_made && (
               <Section label="Why it was made">
-                <p className="world__prose">{meta.why_made}</p>
+                <p className="world__prose">
+                  {injectGlossary(meta.why_made, glossary, usedTerms)}
+                </p>
               </Section>
             )}
 
             {(meta.legacy || meta.debates) && (
               <Section label="Why it still matters">
-                {meta.legacy && <p className="world__prose">{meta.legacy}</p>}
+                {meta.legacy && (
+                  <p className="world__prose">
+                    {injectGlossary(meta.legacy, glossary, usedTerms)}
+                  </p>
+                )}
                 {meta.debates && (
                   <p className="world__prose">
                     <span className="world__inline-label">Still argued — </span>
-                    {meta.debates}
+                    {injectGlossary(meta.debates, glossary, usedTerms)}
                   </p>
                 )}
               </Section>
@@ -610,6 +704,17 @@ export function WorldViewer({
         </article>
       </section>
 
+      {/* Loupe: an enlarged crop of a detail, over a dimming scrim. Tap to close. */}
+      {loupe && (
+        <button
+          className="world__loupe"
+          aria-label="Close detail"
+          onClick={() => setLoupe(null)}
+        >
+          <img className="world__loupe-img" src={loupe} alt="" />
+        </button>
+      )}
+
       {failed && (
         <div className="world__failed">
           <p className="banner__title">Couldn't load the world</p>
@@ -622,6 +727,149 @@ export function WorldViewer({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Crop a real fragment of the artwork for each symbol's box, decoding the source
+ * once. Returns one object URL per symbol (null where there's no usable crop).
+ * Gated on `enabled` so a closed sheet pays nothing; revokes URLs on cleanup.
+ */
+function useSymbolCrops(
+  sourceImage: Blob | undefined,
+  symbolism: SymbolNote[],
+  enabled: boolean,
+): Array<string | null> {
+  const [urls, setUrls] = useState<Array<string | null>>([])
+  useEffect(() => {
+    if (!enabled || !sourceImage || symbolism.length === 0) {
+      setUrls([])
+      return
+    }
+    let cancelled = false
+    const made: string[] = []
+    void cropManyToBoxes(
+      sourceImage,
+      symbolism.map((s) => s.box),
+    ).then((blobs) => {
+      if (cancelled) return
+      setUrls(
+        blobs.map((b) => {
+          if (!b) return null
+          const u = URL.createObjectURL(b)
+          made.push(u)
+          return u
+        }),
+      )
+    })
+    return () => {
+      cancelled = true
+      made.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [sourceImage, symbolism, enabled])
+  return urls
+}
+
+/**
+ * Wrap the first occurrence of up to `cap` glossary terms in `text` as tappable
+ * chips (case-insensitive, simple plural-aware, whole-word). `used` is shared
+ * across the card so each term is chipped once, in the topmost block it appears.
+ */
+function injectGlossary(
+  text: string,
+  glossary: GlossaryTerm[],
+  used: Set<string>,
+  cap = 2,
+): ReactNode {
+  if (!text || glossary.length === 0) return text
+  const avail = glossary.filter(
+    (g) => g.term && g.definition && !used.has(g.term.toLowerCase()),
+  )
+  if (avail.length === 0) return text
+
+  const nodes: ReactNode[] = []
+  let rest = text
+  let injected = 0
+  while (injected < cap && rest) {
+    let best: { idx: number; matched: string; g: GlossaryTerm } | null = null
+    for (const g of avail) {
+      if (used.has(g.term.toLowerCase())) continue
+      const esc = g.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const m = rest.match(new RegExp(`\\b${esc}(?:e?s)?\\b`, 'i'))
+      if (!m || m.index == null) continue
+      if (
+        !best ||
+        m.index < best.idx ||
+        (m.index === best.idx && g.term.length > best.g.term.length)
+      ) {
+        best = { idx: m.index, matched: m[0], g }
+      }
+    }
+    if (!best) break
+    if (best.idx > 0) nodes.push(rest.slice(0, best.idx))
+    nodes.push(
+      <GlossaryChip key={`g-${injected}-${best.g.term}`} definition={best.g.definition}>
+        {best.matched}
+      </GlossaryChip>,
+    )
+    used.add(best.g.term.toLowerCase())
+    rest = rest.slice(best.idx + best.matched.length)
+    injected++
+  }
+  if (rest) nodes.push(rest)
+  return nodes.length > 0 ? nodes : text
+}
+
+/** An inline art term — dotted underline; tap toggles a one-line definition. */
+function GlossaryChip({
+  definition,
+  children,
+}: {
+  definition: string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: Event) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDoc)
+    return () => document.removeEventListener('pointerdown', onDoc)
+  }, [open])
+  return (
+    <span className="world__gloss" ref={ref}>
+      <button
+        type="button"
+        className="world__gloss-term"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {children}
+      </button>
+      {open && (
+        <span className="world__gloss-pop" role="tooltip">
+          {definition}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** A "did you notice…" line: blurred until tapped, then revealed. */
+function HiddenDetail({ text }: { text: string }) {
+  const [revealed, setRevealed] = useState(false)
+  return (
+    <button
+      type="button"
+      className={`world__missed-item${revealed ? ' is-revealed' : ''}`}
+      aria-expanded={revealed}
+      onClick={() => setRevealed(true)}
+    >
+      <span className="world__missed-cue">Did you notice…</span>
+      <span className="world__missed-text">{text}</span>
+    </button>
   )
 }
 

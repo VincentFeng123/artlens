@@ -289,7 +289,7 @@ async function recognizeClaude(
 
   const params = {
     model,
-    max_tokens: 3072, // headroom for the spatial/style world-building fields
+    max_tokens: 4096, // headroom for spatial/style + visual fields (boxes, glossary, palette notes)
     messages: [
       {
         role: 'user',
@@ -394,7 +394,7 @@ async function recognizeOpenAI(
           schema: RECOGNITION_JSON_SCHEMA,
         },
       },
-      max_completion_tokens: 3072, // headroom for the spatial/style world-building fields
+      max_completion_tokens: 4096, // headroom for spatial/style + visual fields (boxes, glossary, palette notes)
     }),
   })
   if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`)

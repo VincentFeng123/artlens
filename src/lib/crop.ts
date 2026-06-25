@@ -12,7 +12,7 @@ export interface Box {
 }
 
 /** Normalize a model bounding box to clamped 0..1 {x,y,w,h}. */
-function normalizeBox(b: Box): Box | null {
+export function normalizeBox(b: Box): Box | null {
   let { x, y, w, h } = b
   if (![x, y, w, h].every((n) => typeof n === 'number' && isFinite(n))) return null
   // Some models (e.g. Gemini) emit 0..1000 instead of 0..1.
@@ -74,6 +74,72 @@ export async function cropToBox(blob: Blob, box: Box | undefined, padFrac = 0.02
     return blob
   } finally {
     URL.revokeObjectURL(url)
+  }
+}
+
+/**
+ * Crop many boxes out of ONE source image, decoding it a single time. Returns a
+ * JPEG blob per box, or `null` for any box that's missing, degenerate, near-full
+ * (per {@link normalizeBox}), or fails to crop — so the caller can fall back to
+ * text for that entry. Used to slice real fragments of the artwork (one per
+ * symbol) for the info sheet. `padFrac` adds a little breathing room around each.
+ */
+export async function cropManyToBoxes(
+  blob: Blob,
+  boxes: Array<Box | undefined>,
+  padFrac = 0.04,
+): Promise<Array<Blob | null>> {
+  const norms = boxes.map((b) => (b ? normalizeBox(b) : null))
+  // Nothing worth cropping → skip the (potentially large) decode entirely.
+  if (!norms.some(Boolean)) return boxes.map(() => null)
+
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await loadImage(url)
+    const W = img.naturalWidth
+    const H = img.naturalHeight
+    const out: Array<Blob | null> = []
+    for (const norm of norms) {
+      out.push(norm ? await cropRegion(img, norm, W, H, padFrac) : null)
+    }
+    return out
+  } catch {
+    return boxes.map(() => null)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/** Crop one normalized region from a decoded image to a JPEG blob (or null). */
+async function cropRegion(
+  img: HTMLImageElement,
+  norm: Box,
+  W: number,
+  H: number,
+  padFrac: number,
+): Promise<Blob | null> {
+  try {
+    let x = (norm.x - padFrac) * W
+    let y = (norm.y - padFrac) * H
+    let w = (norm.w + padFrac * 2) * W
+    let h = (norm.h + padFrac * 2) * H
+    x = Math.max(0, x)
+    y = Math.max(0, y)
+    w = Math.min(W - x, w)
+    h = Math.min(H - y, h)
+    if (w < 8 || h < 8) return null
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(w)
+    canvas.height = Math.round(h)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, x, y, w, h, 0, 0, canvas.width, canvas.height)
+    return await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9),
+    )
+  } catch {
+    return null
   }
 }
 

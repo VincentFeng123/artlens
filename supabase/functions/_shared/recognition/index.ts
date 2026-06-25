@@ -34,6 +34,7 @@ export const RECOGNITION_JSON_SCHEMA = {
     materiality: { type: 'string' },
     scale_note: { type: 'string' },
     palette: { type: 'array', items: { type: 'string' } },
+    palette_notes: { type: 'array', items: { type: 'string' } },
     symbolism: {
       type: 'array',
       items: {
@@ -41,8 +42,19 @@ export const RECOGNITION_JSON_SCHEMA = {
         properties: {
           detail: { type: 'string' },
           meaning: { type: 'string' },
+          box: {
+            type: 'object',
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+              w: { type: 'number' },
+              h: { type: 'number' },
+            },
+            required: ['x', 'y', 'w', 'h'],
+            additionalProperties: false,
+          },
         },
-        required: ['detail', 'meaning'],
+        required: ['detail', 'meaning', 'box'],
         additionalProperties: false,
       },
     },
@@ -62,6 +74,18 @@ export const RECOGNITION_JSON_SCHEMA = {
           artist: { type: 'string' },
         },
         required: ['title', 'artist'],
+        additionalProperties: false,
+      },
+    },
+    glossary: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          term: { type: 'string' },
+          definition: { type: 'string' },
+        },
+        required: ['term', 'definition'],
         additionalProperties: false,
       },
     },
@@ -122,6 +146,7 @@ export const RECOGNITION_JSON_SCHEMA = {
     'materiality',
     'scale_note',
     'palette',
+    'palette_notes',
     'symbolism',
     'hidden_details',
     'process',
@@ -131,6 +156,7 @@ export const RECOGNITION_JSON_SCHEMA = {
     'style',
     'mood',
     'similar_works',
+    'glossary',
     'spatial_layout',
     'horizon',
     'perspective',

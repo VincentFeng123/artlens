@@ -37,6 +37,7 @@ function fallbackMeta(title: string, artist: string, demo: boolean): ArtworkMeta
     materiality: '',
     scale_note: '',
     palette: [],
+    palette_notes: [],
     symbolism: [],
     hidden_details: [],
     process: '',
@@ -46,6 +47,7 @@ function fallbackMeta(title: string, artist: string, demo: boolean): ArtworkMeta
     style: '',
     mood: '',
     similar_works: [],
+    glossary: [],
     demo,
   }
 }

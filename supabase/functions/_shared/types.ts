@@ -8,6 +8,12 @@ export interface SimilarWork {
 export interface SymbolNote {
   detail: string
   meaning: string
+  box?: { x: number; y: number; w: number; h: number }
+}
+
+export interface GlossaryTerm {
+  term: string
+  definition: string
 }
 
 export interface RecognitionResult {
@@ -28,6 +34,7 @@ export interface RecognitionResult {
   materiality: string
   scale_note: string
   palette: string[]
+  palette_notes?: string[]
   symbolism: SymbolNote[]
   hidden_details: string[]
   process: string
@@ -37,6 +44,7 @@ export interface RecognitionResult {
   style: string
   mood: string
   similar_works: SimilarWork[]
+  glossary?: GlossaryTerm[]
 
   // ── World-building: spatial/360 structure fed to the panorama generator ──
   // Optional on the type (older cached rows / the demo dossier may omit them),

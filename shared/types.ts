@@ -14,6 +14,21 @@ export interface SymbolNote {
   detail: string
   /** What it signifies, e.g. "a death in the room". */
   meaning: string
+  /**
+   * Tight bounding box of this detail within the artwork image, normalized 0..1
+   * (x,y = top-left) — lets the viewer crop a real fragment of the painting to
+   * show beside the meaning. Full-frame ({x:0,y:0,w:1,h:1}) or absent when the
+   * model can't localize it; the client then falls back to text only.
+   */
+  box?: { x: number; y: number; w: number; h: number }
+}
+
+/** An art-vocabulary term used in the prose, with a one-line definition. */
+export interface GlossaryTerm {
+  /** The term as it appears in the text, e.g. "impasto". */
+  term: string
+  /** A plain, one-line definition (≤15 words). */
+  definition: string
 }
 
 /**
@@ -57,6 +72,12 @@ export interface RecognitionResult {
   scale_note: string
   /** Dominant colours in plain words, e.g. ["deep ultramarine", "amber"]. */
   palette: string[]
+  /**
+   * One note per {@link palette} entry (index-aligned): where that colour lives
+   * in the work or why it matters. "" when there's nothing worth saying.
+   * Optional so older/skewed payloads degrade to static swatches.
+   */
+  palette_notes?: string[]
 
   // ── Rabbit hole ────────────────────────────────────────────────────────
   /** Symbols/details paired with what they mean. */
@@ -76,6 +97,11 @@ export interface RecognitionResult {
   style: string
   mood: string
   similar_works: SimilarWork[]
+  /**
+   * Art-vocabulary terms used in the prose, each with a one-line definition, so
+   * the viewer can surface them as tappable glossary chips. Optional/[] when none.
+   */
+  glossary?: GlossaryTerm[]
 
   // ── World-building: spatial/360 structure fed to the panorama generator ──
   // Optional on the type (older cached rows / the demo dossier may omit them),

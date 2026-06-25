@@ -43,7 +43,7 @@ export async function recognizeWithOpenAI({
           schema: RECOGNITION_JSON_SCHEMA,
         },
       },
-      max_completion_tokens: 3072, // headroom for the spatial/style world-building fields
+      max_completion_tokens: 4096, // headroom for spatial/style + visual fields (boxes, glossary, palette notes)
     }),
   })
 

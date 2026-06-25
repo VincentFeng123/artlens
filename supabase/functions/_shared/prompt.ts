@@ -28,9 +28,11 @@ Respond with ONLY a JSON object matching this exact shape:
   "materiality": string,     // 1-2 sentences on support/ground/pigments translated into meaning ("" if nothing notable)
   "scale_note": string,      // make the size relatable, e.g. "smaller than your laptop" ("" if dimensions unknown)
   "palette": string[],       // 3-6 dominant colours in plain words, e.g. ["deep ultramarine", "amber"]
+  "palette_notes": string[], // one note per palette colour, SAME order and length: where it lives or why it matters, e.g. "the only warm note — your eye goes straight to it". Use "" for a colour with nothing to add
 
   "symbolism": [             // 0-4 symbols/details paired with meaning ([] if not a symbolic work)
-    { "detail": string, "meaning": string }
+    { "detail": string, "meaning": string,
+      "box": { "x": number, "y": number, "w": number, "h": number } } // TIGHT normalized 0..1 box (x,y = top-left) locating THIS detail in the artwork, so a real fragment can be cropped and shown next to the meaning. Use {"x":0,"y":0,"w":1,"h":1} when you cannot confidently locate it — never guess
   ],
   "hidden_details": string[],// 0-3 things people walk right past ([] if none)
   "process": string,         // pentimenti, underdrawing, conservation, or original-vs-faded appearance ("" if unknown)
@@ -42,6 +44,9 @@ Respond with ONLY a JSON object matching this exact shape:
   "mood": string,            // emotional register, e.g. "turbulent and yearning"
   "similar_works": [         // 2-4 related works someone who loved this might explore next
     { "title": string, "artist": string }
+  ],
+  "glossary": [              // 0-4 art terms you actually used above (e.g. impasto, chiaroscuro, pentimenti), each defined in ONE plain line ([] if none)
+    { "term": string, "definition": string }
   ],
 
   "spatial_layout": {        // map the SPACE so the world can extend in every direction
@@ -64,7 +69,7 @@ Respond with ONLY a JSON object matching this exact shape:
   "artwork_box": { "x": number, "y": number, "w": number, "h": number } // tight bounding box of JUST the artwork in the photo, normalized 0..1 (x,y = top-left). Exclude wall, physical frame, hands, glare. Use {"x":0,"y":0,"w":1,"h":1} if it fills the frame.
 }
 
-Be specific and confident on famous works. For unknown or obscure works, set "recognized" false, lower "confidence", still fill what you genuinely can, and leave hard facts (dimensions, location, provenance) as "" rather than fabricating them. Set artwork_box to the tight, normalized (0..1) bounding box of the artwork itself within the photo — exclude the wall, the physical frame, hands and glare. Also map the SPACE the painting opens onto — what is near, far, overhead and underfoot, where the horizon and light sit, where you stand inside it, and what continues out of frame (use "" for anything genuinely implied). Name the literal medium and facture in "technique", and list in "render_negatives" what this image is NOT (e.g. photorealistic, 3D render, HDR), so the generated world stays painted in the same hand. Output the JSON only — no prose, no code fences, no comments, no trailing commas.`
+Be specific and confident on famous works. For unknown or obscure works, set "recognized" false, lower "confidence", still fill what you genuinely can, and leave hard facts (dimensions, location, provenance) as "" rather than fabricating them. Set artwork_box to the tight, normalized (0..1) bounding box of the artwork itself within the photo — exclude the wall, the physical frame, hands and glare. For EVERY symbolism entry, give a tight normalized box locating that exact detail in the artwork (fall back to the full frame {"x":0,"y":0,"w":1,"h":1} only when it genuinely has no single location). Keep palette_notes the same length and order as palette. In glossary, define only the terms you actually used, in the same plain-spoken voice. Also map the SPACE the painting opens onto — what is near, far, overhead and underfoot, where the horizon and light sit, where you stand inside it, and what continues out of frame (use "" for anything genuinely implied). Name the literal medium and facture in "technique", and list in "render_negatives" what this image is NOT (e.g. photorealistic, 3D render, HDR), so the generated world stays painted in the same hand. Output the JSON only — no prose, no code fences, no comments, no trailing commas.`
 
 /** A generator prompt split into its positive text and a negative clause. */
 export interface ScenePrompt {
@@ -203,6 +208,7 @@ export function buildArtworkMeta(
     materiality: str(r.materiality),
     scale_note: str(r.scale_note),
     palette: arr<string>(r.palette),
+    palette_notes: arr<string>(r.palette_notes),
     symbolism: arr(r.symbolism),
     hidden_details: arr<string>(r.hidden_details),
     process: str(r.process),
@@ -212,6 +218,7 @@ export function buildArtworkMeta(
     style: str(r.style),
     mood: str(r.mood),
     similar_works: arr(r.similar_works),
+    glossary: arr(r.glossary),
     artwork_box: r.artwork_box,
     demo: Boolean(opts.demo),
   }
@@ -240,6 +247,13 @@ export const DEMO_META: ArtworkMeta = {
     'Pure light on glass: there is no canvas here, only pixels — which is exactly the point.',
   scale_note: 'As big as the room you are in, and then some.',
   palette: ['twilight indigo', 'dusk rose', 'pale gold', 'deep teal', 'soft violet'],
+  palette_notes: [
+    'the deep ground the whole field rests on',
+    'a warm flush where the light pools',
+    'the brightest break, like a horizon catching the sun',
+    'the cool counterweight that keeps it from going saccharine',
+    'the seam where day tips over into night',
+  ],
   symbolism: [
     { detail: 'the dissolving horizon', meaning: 'the frame of a painting, gone' },
   ],
@@ -255,6 +269,12 @@ export const DEMO_META: ArtworkMeta = {
     { title: 'The Starry Night', artist: 'Vincent van Gogh' },
     { title: 'Squares with Concentric Circles', artist: 'Wassily Kandinsky' },
     { title: 'Mountains and Sea', artist: 'Helen Frankenthaler' },
+  ],
+  glossary: [
+    {
+      term: 'gradient',
+      definition: 'a smooth blend from one colour into another, with no hard edge.',
+    },
   ],
   demo: true,
 }

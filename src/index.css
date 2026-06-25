@@ -689,6 +689,40 @@ button {
   transition: opacity 0.42s var(--ease);
 }
 
+/* Loupe: an enlarged detail crop over a dimming, blurred scrim. Tap to close. */
+.world__loupe {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 36px;
+  border: none;
+  background: rgba(4, 5, 11, 0.86);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  cursor: zoom-out;
+  animation: loupeIn 0.28s var(--ease) both;
+}
+.world__loupe-img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+@keyframes loupeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Sheet container: pointer-transparent except its children */
 .world__sheet {
   position: absolute;
@@ -783,10 +817,7 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
-  /* No slab behind the handle: the blurred world shows through at the very top,
-     and the sheet tint ramps in over the first 72px, dissolving into the solid
-     dossier where the content begins. */
-  background: linear-gradient(to bottom, rgba(9, 9, 14, 0) 0, var(--sheet) 72px);
+  background: var(--sheet);
   -webkit-backdrop-filter: blur(30px) saturate(1.3);
   backdrop-filter: blur(30px) saturate(1.3);
   border-radius: 26px 26px 0 0;
@@ -805,9 +836,63 @@ button {
   padding: 22px 0 18px;
   cursor: grab;
   touch-action: none;
+  /* Sit above the progressive-blur bar so the handle stays crisp. */
+  position: relative;
+  z-index: 2;
 }
 .world__handle--card {
   background: rgba(255, 255, 255, 0.26);
+}
+
+/* Progressive-blur top bar (iOS-style): stacked layers with increasing blur
+   radius toward the top, plus an opaque tint lip. Content stays crisp lower
+   down and blurs + dissolves into the bar under the handle — never a hard cut. */
+.world__topbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 132px;
+  z-index: 1; /* above the scrolling content, below the grabber */
+  pointer-events: none;
+}
+.world__blur {
+  position: absolute;
+  inset: 0;
+}
+.world__blur--1 {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(to top, transparent 0%, #000 28%);
+  mask-image: linear-gradient(to top, transparent 0%, #000 28%);
+}
+.world__blur--2 {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to top, transparent 28%, #000 52%);
+  mask-image: linear-gradient(to top, transparent 28%, #000 52%);
+}
+.world__blur--3 {
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to top, transparent 52%, #000 76%);
+  mask-image: linear-gradient(to top, transparent 52%, #000 76%);
+}
+.world__blur--4 {
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  -webkit-mask-image: linear-gradient(to top, transparent 76%, #000 100%);
+  mask-image: linear-gradient(to top, transparent 76%, #000 100%);
+}
+/* Opaque frosted lip painted over the blur — hides the scroll clip edge so the
+   top line of text dissolves rather than getting cut off. */
+.world__topbar-tint {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(9, 9, 14, 0.95) 0,
+    rgba(9, 9, 14, 0.82) 34%,
+    rgba(9, 9, 14, 0) 100%
+  );
 }
 .world__scroll {
   flex: 1;
@@ -912,6 +997,43 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Tappable swatch — reveals where the colour lives, below the grid. */
+.world__swatch-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+button.world__swatch-btn {
+  cursor: pointer;
+}
+.world__swatch-btn .world__swatch-chip {
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.world__swatch-btn.is-active .world__swatch-chip {
+  transform: scale(1.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.world__swatch-btn.is-active .world__swatch-name {
+  color: var(--fg);
+}
+.world__swatch-note {
+  margin: 16px 0 0;
+  line-height: 1.5;
+  font-weight: 300;
+  color: var(--fg);
+  font-style: italic;
+  font-family: var(--serif);
+}
 
 /* Rabbit-hole divider — marks the shift from lean-in to the deep cuts. */
 .world__depth {
@@ -937,19 +1059,49 @@ button {
   padding-top: 0;
 }
 
-/* Symbolism: a detail paired with what it means. */
+/* Symbolism: a real fragment of the painting beside what it means. */
 .world__sym {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
 }
 .world__sym-item {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+}
+.world__sym-thumb-btn {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  border-radius: 12px;
+  cursor: zoom-in;
+}
+.world__sym-thumb {
+  display: block;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s var(--ease);
+}
+.world__sym-thumb-btn:active .world__sym-thumb {
+  transform: scale(0.96);
+}
+.world__sym-text {
+  display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 .world__sym-detail {
   font-family: var(--serif);
@@ -961,27 +1113,82 @@ button {
   font-weight: 300;
 }
 
-/* Things people walk right past. */
+/* "Did you notice…" — the answer stays blurred until you tap. */
 .world__missed {
   list-style: none;
-  margin: 18px 0 0;
+  margin: 20px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
-.world__missed li {
-  position: relative;
-  padding-left: 18px;
+.world__missed-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
   color: rgba(245, 244, 248, 0.86);
+  cursor: pointer;
+}
+.world__missed-item.is-revealed {
+  cursor: default;
+}
+.world__missed-cue {
+  color: var(--fg-faint);
+  font-style: italic;
+  font-family: var(--serif);
+}
+.world__missed-text {
   line-height: 1.5;
   font-weight: 300;
+  filter: blur(6px);
+  opacity: 0.72;
+  transition: filter 0.4s var(--ease), opacity 0.4s var(--ease);
 }
-.world__missed li::before {
-  content: "—";
+.world__missed-item.is-revealed .world__missed-text {
+  filter: none;
+  opacity: 1;
+}
+
+/* Inline art-vocabulary chip + its tap-to-reveal definition. */
+.world__gloss {
+  position: relative;
+  display: inline;
+}
+.world__gloss-term {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--fg);
+  cursor: help;
+  text-decoration: underline dotted rgba(245, 244, 248, 0.5);
+  text-underline-offset: 3px;
+}
+.world__gloss-pop {
   position: absolute;
   left: 0;
-  color: var(--fg-faint);
+  bottom: calc(100% + 8px);
+  z-index: 3;
+  width: max-content;
+  max-width: 230px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: var(--fg-dim);
+  font-weight: 300;
+  font-style: normal;
+  line-height: 1.4;
 }
 
 /* The catalogue — boring reference, buried near the bottom. */

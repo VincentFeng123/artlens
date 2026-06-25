@@ -22,7 +22,7 @@ export async function recognizeWithClaude({
   // the params shape comes from current Anthropic docs.
   const params = {
     model,
-    max_tokens: 3072, // headroom for the spatial/style world-building fields
+    max_tokens: 4096, // headroom for spatial/style + visual fields (boxes, glossary, palette notes)
     messages: [
       {
         role: 'user',
