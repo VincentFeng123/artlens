@@ -31,6 +31,24 @@ export interface GlossaryTerm {
   definition: string
 }
 
+/** Which renderer the world uses, chosen per-artwork by the realization router. */
+export type Realization = 'flat' | 'depth' | 'layered'
+
+/** Coarse scene class the router reads to pick a realization strategy. */
+export type SceneType =
+  | 'landscape'
+  | 'portrait'
+  | 'still-life'
+  | 'interior'
+  | 'abstract'
+
+/** Coarse depth structure the router reads to pick a realization strategy. */
+export type DepthProfile =
+  | 'mostly-far'
+  | 'far-with-near-foreground'
+  | 'shallow-tabletop'
+  | 'flat'
+
 /**
  * Strict JSON the vision LLM must return. Every field is already translated
  * into *meaning*, never raw catalogue data — the card is a story, not a placard.
@@ -137,6 +155,16 @@ export interface RecognitionResult {
    * Used to crop the photo down to the clean artwork.
    */
   artwork_box?: { x: number; y: number; w: number; h: number }
+
+  // ── 3D realization routing (drives flat vs depth-mesh vs — later — layered) ──
+  // Optional on the type (older cached rows / the demo dossier omit them); the
+  // router defaults safely when absent.
+  /** Coarse scene class — the dominant kind of scene. */
+  scene_type?: SceneType
+  /** 0..1 fraction of the frame occupied by prominent figures (people/animals). */
+  figure_coverage?: number
+  /** Coarse depth structure of the scene. */
+  depth_profile?: DepthProfile
 }
 
 /**
@@ -155,6 +183,8 @@ export interface ScanReadyResponse {
   panorama_url: string
   /** Equirectangular depth PNG URL for parallax (Blockade Model 3); null/absent otherwise. */
   depth_url?: string | null
+  /** Render strategy chosen by the realization router; absent → client default. */
+  realization?: Realization
   title: string
   artist: string
   /** Full artwork dossier for the viewer's info card. */
@@ -173,6 +203,8 @@ export interface ScanGeneratingResponse {
    * already — the client holds it while polling for the panorama.
    */
   meta?: ArtworkMeta
+  /** Render strategy chosen by the realization router; absent → client default. */
+  realization?: Realization
 }
 
 export interface ScanErrorResponse {
@@ -192,6 +224,8 @@ export interface JobStatusResponse {
   panorama_url: string | null
   /** Equirectangular depth PNG URL for parallax; null when none. */
   depth_url?: string | null
+  /** Render strategy chosen by the realization router; null/absent → client default. */
+  realization?: Realization | null
   error: string | null
   title: string | null
   artist: string | null

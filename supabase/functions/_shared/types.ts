@@ -16,6 +16,21 @@ export interface GlossaryTerm {
   definition: string
 }
 
+export type Realization = 'flat' | 'depth' | 'layered'
+
+export type SceneType =
+  | 'landscape'
+  | 'portrait'
+  | 'still-life'
+  | 'interior'
+  | 'abstract'
+
+export type DepthProfile =
+  | 'mostly-far'
+  | 'far-with-near-foreground'
+  | 'shallow-tabletop'
+  | 'flat'
+
 export interface RecognitionResult {
   recognized: boolean
   confidence: number
@@ -67,6 +82,10 @@ export interface RecognitionResult {
   technique?: string
   render_negatives?: string[]
   artwork_box?: { x: number; y: number; w: number; h: number }
+
+  scene_type?: SceneType
+  figure_coverage?: number
+  depth_profile?: DepthProfile
 }
 
 export interface ArtworkMeta extends RecognitionResult {
@@ -79,6 +98,7 @@ export interface ScanReadyResponse {
   status: 'ready'
   panorama_url: string
   depth_url?: string | null
+  realization?: Realization
   title: string
   artist: string
   meta?: ArtworkMeta
@@ -91,6 +111,7 @@ export interface ScanGeneratingResponse {
   title: string
   artist: string
   meta?: ArtworkMeta
+  realization?: Realization
 }
 
 export interface ScanErrorResponse {
@@ -108,6 +129,7 @@ export interface JobStatusResponse {
   status: JobStatusValue
   panorama_url: string | null
   depth_url?: string | null
+  realization?: Realization | null
   error: string | null
   title: string | null
   artist: string | null
