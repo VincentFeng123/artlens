@@ -127,6 +127,15 @@ export const RECOGNITION_JSON_SCHEMA = {
       required: ['x', 'y', 'w', 'h'],
       additionalProperties: false,
     },
+    scene_type: {
+      type: 'string',
+      enum: ['landscape', 'portrait', 'still-life', 'interior', 'abstract'],
+    },
+    figure_coverage: { type: 'number' },
+    depth_profile: {
+      type: 'string',
+      enum: ['mostly-far', 'far-with-near-foreground', 'shallow-tabletop', 'flat'],
+    },
   },
   required: [
     'recognized',
@@ -166,6 +175,9 @@ export const RECOGNITION_JSON_SCHEMA = {
     'technique',
     'render_negatives',
     'artwork_box',
+    'scene_type',
+    'figure_coverage',
+    'depth_profile',
   ],
   additionalProperties: false,
 } as const
