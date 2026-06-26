@@ -27,23 +27,37 @@ Deno.serve(async (req) => {
 
   // 1) cache hit
   if (artworkId) {
-    const { data: hit } = await admin
-      .from('artwork_content')
-      .select('dossier')
-      .eq('artwork_id', artworkId).eq('lang', lang).eq('level', level)
-      .maybeSingle()
+    let hit: { dossier: ArtworkMeta } | null | undefined
+    try {
+      const result = await admin
+        .from('artwork_content')
+        .select('dossier')
+        .eq('artwork_id', artworkId).eq('lang', lang).eq('level', level)
+        .maybeSingle()
+      hit = result.data
+    } catch (e) {
+      // Cache miss on query error — continue
+      console.error('cache lookup failed', errMessage(e))
+      hit = undefined
+    }
     if (hit?.dossier) return json({ meta: hit.dossier as ArtworkMeta })
   }
 
   // 2) resolve source: persisted base, else the base from the request body
   let source: ArtworkMeta | undefined
   if (artworkId) {
-    const { data: row } = await admin
-      .from('artwork_content')
-      .select('dossier')
-      .eq('artwork_id', artworkId).eq('lang', 'en').eq('level', 'medium')
-      .maybeSingle()
-    source = row?.dossier as ArtworkMeta | undefined
+    try {
+      const { data: row } = await admin
+        .from('artwork_content')
+        .select('dossier')
+        .eq('artwork_id', artworkId).eq('lang', 'en').eq('level', 'medium')
+        .maybeSingle()
+      source = row?.dossier as ArtworkMeta | undefined
+    } catch (e) {
+      // Source lookup failed — fall back to request base
+      console.error('source lookup failed', errMessage(e))
+      source = undefined
+    }
   }
   source = source ?? base
   if (!source) return json({ error: 'no base dossier available' }, 404)
@@ -61,13 +75,18 @@ Deno.serve(async (req) => {
     localized.palette_hex = source.palette_hex
   } catch (e) {
     console.error('localize transform failed (serving base)', errMessage(e))
-    return json({ meta: { ...source, lang, level } })
+    return json({ meta: { ...source, lang, level, palette_hex: source.palette_hex } })
   }
 
   // 4) cache when we have an artwork id
   if (artworkId) {
-    await admin.from('artwork_content')
-      .upsert({ artwork_id: artworkId, lang, level, dossier: localized })
+    try {
+      await admin.from('artwork_content')
+        .upsert({ artwork_id: artworkId, lang, level, dossier: localized })
+    } catch (e) {
+      // Upsert failure must not discard the successful transform
+      console.error('cache upsert failed', errMessage(e))
+    }
   }
   return json({ meta: localized })
 })
