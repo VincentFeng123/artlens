@@ -7,6 +7,7 @@ import {
 } from '../_shared/recognition/index.ts'
 import { getPanoramaProvider, hasPanoramaProvider } from '../_shared/panorama/index.ts'
 import { buildArtworkMeta, buildScenePrompt, DEMO_META } from '../_shared/prompt.ts'
+import { buildPaletteHex } from '../_shared/paletteColor.ts'
 import type { RecognitionResult } from '../_shared/types.ts'
 import { routeRealization } from '../_shared/realization/route.ts'
 
@@ -41,6 +42,7 @@ Deno.serve(async (req) => {
       title: DEMO_META.title,
       artist: DEMO_META.artist,
       meta: DEMO_META,
+      artwork_id: null,
       demo: true,
     })
   }
@@ -57,6 +59,7 @@ Deno.serve(async (req) => {
   }
 
   const meta = buildArtworkMeta(recognition)
+  meta.palette_hex = buildPaletteHex(meta.palette)
   const title = meta.title
   const artist = meta.artist
   const realization = routeRealization({
@@ -93,6 +96,7 @@ Deno.serve(async (req) => {
         title: hit.title ?? title,
         artist: hit.artist ?? artist,
         meta: { ...meta, title: hit.title ?? title, artist: hit.artist ?? artist },
+        artwork_id: hit.id,
       })
     }
   }
@@ -128,9 +132,15 @@ Deno.serve(async (req) => {
     .select('id')
     .single()
 
-  // 5) No usable generator → recognized (real dossier), but serve the demo world.
+  // 5a) Persist the base (en, medium) dossier so the localization worker can pick it up.
+  if (artwork?.id) {
+    await admin.from('artwork_content')
+      .upsert({ artwork_id: artwork.id, lang: 'en', level: 'medium', dossier: meta })
+  }
+
+  // 5b) No usable generator → recognized (real dossier), but serve the demo world.
   if (!hasPanoramaProvider()) {
-    return json({ status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, demo: true })
+    return json({ status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, artwork_id: artwork?.id ?? null, demo: true })
   }
 
   // 6) Create a job and run generation in the background.
@@ -160,7 +170,7 @@ Deno.serve(async (req) => {
 
   // Recognition is already done — hand the dossier to the client to hold while
   // it polls job-status for the panorama.
-  return json({ status: 'generating', job_id: job.id, title, artist, meta, realization })
+  return json({ status: 'generating', job_id: job.id, title, artist, meta, realization, artwork_id: artwork?.id ?? null })
 })
 
 interface GenerationArgs {

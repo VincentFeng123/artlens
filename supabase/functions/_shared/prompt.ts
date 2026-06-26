@@ -243,6 +243,7 @@ export function buildArtworkMeta(
     scale_note: str(r.scale_note),
     palette: arr<string>(r.palette),
     palette_notes: arr<string>(r.palette_notes),
+    palette_hex: arr<string>(r.palette_hex),
     symbolism: arr(r.symbolism),
     hidden_details: arr<string>(r.hidden_details),
     process: str(r.process),
@@ -255,6 +256,8 @@ export function buildArtworkMeta(
     glossary: arr(r.glossary),
     artwork_box: r.artwork_box,
     demo: Boolean(opts.demo),
+    lang: 'en',
+    level: 'medium',
   }
 }
 
