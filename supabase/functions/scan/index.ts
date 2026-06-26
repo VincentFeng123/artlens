@@ -134,8 +134,9 @@ Deno.serve(async (req) => {
 
   // 5a) Persist the base (en, medium) dossier so the localization worker can pick it up.
   if (artwork?.id) {
-    await admin.from('artwork_content')
-      .upsert({ artwork_id: artwork.id, lang: 'en', level: 'medium', dossier: meta })
+    await (admin.from('artwork_content')
+      .upsert({ artwork_id: artwork.id, lang: 'en', level: 'medium', dossier: meta }) as unknown as Promise<any>)
+      .catch((e) => console.warn('artwork_content base persist failed (non-fatal)', e))
   }
 
   // 5b) No usable generator → recognized (real dossier), but serve the demo world.

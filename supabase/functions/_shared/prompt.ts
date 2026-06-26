@@ -256,8 +256,8 @@ export function buildArtworkMeta(
     glossary: arr(r.glossary),
     artwork_box: r.artwork_box,
     demo: Boolean(opts.demo),
-    lang: 'en',
-    level: 'medium',
+    lang: r.lang ?? 'en',
+    level: r.level ?? 'medium',
   }
 }
 

@@ -93,6 +93,8 @@ export interface RecognitionResult {
   scene_type?: SceneType
   figure_coverage?: number
   depth_profile?: DepthProfile
+  lang?: Locale
+  level?: ReadingLevel
 }
 
 export interface ArtworkMeta extends RecognitionResult {
