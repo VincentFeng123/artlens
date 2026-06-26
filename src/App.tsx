@@ -16,6 +16,7 @@ interface World {
   depthUrl?: string
   realization?: Realization
   meta: ArtworkMeta
+  artworkId?: string
 }
 
 export function App() {
@@ -61,6 +62,7 @@ export function App() {
         depthUrl: res.depthUrl,
         meta: res.meta,
         realization: res.realization,
+        artworkId: res.artworkId,
       })
       setScreen('world')
     } catch (e) {
@@ -115,6 +117,7 @@ export function App() {
           depthUrl={world.depthUrl}
           realization={world.realization}
           meta={world.meta}
+          artworkId={world.artworkId}
           sourceImage={sourceImage ?? undefined}
           onScanAnother={handleScanAnother}
         />

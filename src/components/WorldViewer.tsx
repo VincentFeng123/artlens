@@ -29,6 +29,7 @@ interface Props {
    * for demo/cached worlds, in which case those rows fall back to text only.
    */
   sourceImage?: Blob
+  artworkId?: string
   onScanAnother: () => void
 }
 

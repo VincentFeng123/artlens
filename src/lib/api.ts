@@ -17,6 +17,7 @@ export interface ScanOutcome {
   demo: boolean
   /** Full artwork dossier for the viewer's info card. */
   meta: ArtworkMeta
+  artworkId?: string
 }
 
 /** Minimal dossier when the backend is older or hasn't attached one. */
@@ -101,6 +102,7 @@ async function scanViaDevApi(
       artist: data.artist,
       demo: Boolean(data.demo),
       meta: data.meta ?? fallbackMeta(data.title, data.artist, Boolean(data.demo)),
+      artworkId: data.artwork_id ?? undefined,
     }
   }
 
@@ -121,6 +123,7 @@ async function scanViaDevApi(
     artist,
     demo: false,
     meta: job.meta ?? fallbackMeta(title, artist, false),
+    artworkId: job.artwork_id ?? data.artwork_id ?? undefined,
   }
 }
 
@@ -168,6 +171,7 @@ async function scanViaEdge(
       artist: data.artist,
       demo: Boolean(data.demo),
       meta: data.meta ?? fallbackMeta(data.title, data.artist, Boolean(data.demo)),
+      artworkId: data.artwork_id ?? undefined,
     }
   }
 
@@ -188,6 +192,7 @@ async function scanViaEdge(
     artist,
     demo: false,
     meta: job.meta ?? genMeta ?? fallbackMeta(title, artist, false),
+    artworkId: job.artwork_id ?? data.artwork_id ?? undefined,
   }
 }
 
