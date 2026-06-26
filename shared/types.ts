@@ -49,6 +49,15 @@ export type DepthProfile =
   | 'shallow-tabletop'
   | 'flat'
 
+/** Reading level for the dossier prose — same facts, vocabulary scales. */
+export type ReadingLevel = 'simple' | 'medium' | 'rich'
+
+/** Supported dossier languages (BCP-47-ish). English is the base/source. */
+export type Locale = 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'fr' | 'de' | 'ja' | 'ko' | 'pt'
+
+/** The locales offered in the picker, in display order. */
+export const SUPPORTED_LOCALES: Locale[] = ['en', 'es', 'zh-Hans', 'zh-Hant', 'fr', 'de', 'ja', 'ko', 'pt']
+
 /**
  * Strict JSON the vision LLM must return. Every field is already translated
  * into *meaning*, never raw catalogue data — the card is a story, not a placard.
@@ -96,6 +105,12 @@ export interface RecognitionResult {
    * Optional so older/skewed payloads degrade to static swatches.
    */
   palette_notes?: string[]
+  /**
+   * Display hex (index-aligned to {@link palette}) precomputed from the English
+   * colour names at base generation, so localized variants render correct
+   * swatches even when the colour *labels* are translated. Optional for back-compat.
+   */
+  palette_hex?: string[]
 
   // ── Rabbit hole ────────────────────────────────────────────────────────
   /** Symbols/details paired with what they mean. */
@@ -174,6 +189,10 @@ export interface RecognitionResult {
 export interface ArtworkMeta extends RecognitionResult {
   /** True when this is the zero-config demo world (curated, not a real scan). */
   demo: boolean
+  /** Which language this dossier is rendered in (default 'en'). */
+  lang?: Locale
+  /** Which reading level this dossier is rendered at (default 'medium'). */
+  level?: ReadingLevel
 }
 
 export type JobStatusValue = 'pending' | 'generating' | 'ready' | 'error'
@@ -189,6 +208,8 @@ export interface ScanReadyResponse {
   artist: string
   /** Full artwork dossier for the viewer's info card. */
   meta?: ArtworkMeta
+  /** The cached artwork's id, so the client can request localized variants. */
+  artwork_id?: string | null
   /** True when served by the zero-config demo path (no keys configured). */
   demo?: boolean
 }
@@ -203,6 +224,8 @@ export interface ScanGeneratingResponse {
    * already — the client holds it while polling for the panorama.
    */
   meta?: ArtworkMeta
+  /** The cached artwork's id, so the client can request localized variants. */
+  artwork_id?: string | null
   /** Render strategy chosen by the realization router; absent → client default. */
   realization?: Realization
 }
@@ -231,4 +254,6 @@ export interface JobStatusResponse {
   artist: string | null
   /** Dossier, when the backend carries it through the job (dev path). */
   meta?: ArtworkMeta | null
+  /** The cached artwork's id, so the client can request localized variants. */
+  artwork_id?: string | null
 }

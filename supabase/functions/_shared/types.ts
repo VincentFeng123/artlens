@@ -31,6 +31,12 @@ export type DepthProfile =
   | 'shallow-tabletop'
   | 'flat'
 
+export type ReadingLevel = 'simple' | 'medium' | 'rich'
+
+export type Locale = 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'fr' | 'de' | 'ja' | 'ko' | 'pt'
+
+export const SUPPORTED_LOCALES: Locale[] = ['en', 'es', 'zh-Hans', 'zh-Hant', 'fr', 'de', 'ja', 'ko', 'pt']
+
 export interface RecognitionResult {
   recognized: boolean
   confidence: number
@@ -50,6 +56,7 @@ export interface RecognitionResult {
   scale_note: string
   palette: string[]
   palette_notes?: string[]
+  palette_hex?: string[]
   symbolism: SymbolNote[]
   hidden_details: string[]
   process: string
@@ -90,6 +97,8 @@ export interface RecognitionResult {
 
 export interface ArtworkMeta extends RecognitionResult {
   demo: boolean
+  lang?: Locale
+  level?: ReadingLevel
 }
 
 export type JobStatusValue = 'pending' | 'generating' | 'ready' | 'error'
@@ -102,6 +111,7 @@ export interface ScanReadyResponse {
   title: string
   artist: string
   meta?: ArtworkMeta
+  artwork_id?: string | null
   demo?: boolean
 }
 
@@ -111,6 +121,7 @@ export interface ScanGeneratingResponse {
   title: string
   artist: string
   meta?: ArtworkMeta
+  artwork_id?: string | null
   realization?: Realization
 }
 
@@ -134,4 +145,5 @@ export interface JobStatusResponse {
   title: string | null
   artist: string | null
   meta?: ArtworkMeta | null
+  artwork_id?: string | null
 }
