@@ -8,5 +8,13 @@ export default defineConfig({
   test: {
     include: ['supabase/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
+    globals: true,
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost',
+        pretendToBeVisual: true,
+        localStorage: true,
+      },
+    },
   },
 })
