@@ -8,18 +8,14 @@ import {
 } from 'react'
 import { Skybox } from '../three/Skybox'
 import type { LookMode } from '../three/DeviceOrientationController'
-import { SUPPORTED_LOCALES, type ArtworkMeta, type GlossaryTerm, type Locale, type ReadingLevel, type Realization, type SymbolNote } from '../../shared/types'
+import { type ArtworkMeta, type GlossaryTerm, type Locale, type Realization, type SymbolNote } from '../../shared/types'
 import { paletteColor } from '../lib/paletteColor'
 import { cropManyToBoxes } from '../lib/crop'
 import { getPref, setPref } from '../lib/contentPref'
+import { DossierControls } from './DossierControls'
 import { localizeDossier } from '../lib/localize'
 import { termRegex } from '../lib/glossary'
 
-const LANG_LABEL: Record<Locale, string> = {
-  en: 'English', es: 'Español', 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文',
-  fr: 'Français', de: 'Deutsch', ja: '日本語', ko: '한국어', pt: 'Português',
-}
-const LEVELS: ReadingLevel[] = ['simple', 'medium', 'rich']
 
 interface Props {
   panoramaUrl: string
@@ -531,37 +527,11 @@ export function WorldViewer({
             <span className="world__handle world__handle--card" />
           </div>
 
-          <div className={`world__controls${localizing ? ' is-busy' : ''}`}>
-            <details className="world__lang">
-              <summary className="world__lang-pill">{LANG_LABEL[pref.lang]}</summary>
-              <ul className="world__lang-menu">
-                {SUPPORTED_LOCALES.map((l) => (
-                  <li key={l}>
-                    <button
-                      type="button"
-                      className={l === pref.lang ? 'is-active' : ''}
-                      onClick={(e) => {
-                        const next = { ...pref, lang: l }
-                        setPref(next); setPrefState(next)
-                        ;(e.currentTarget.closest('details') as HTMLDetailsElement).open = false
-                      }}
-                    >{LANG_LABEL[l]}</button>
-                  </li>
-                ))}
-              </ul>
-            </details>
-            <input
-              className="world__level"
-              type="range" min={0} max={2} step={1}
-              value={LEVELS.indexOf(pref.level)}
-              aria-label="Reading level"
-              onChange={(e) => {
-                const next = { ...pref, level: LEVELS[Number(e.target.value)] }
-                setPref(next); setPrefState(next)
-              }}
-            />
-            <span className="world__level-label">{pref.level}</span>
-          </div>
+          <DossierControls
+            value={pref}
+            busy={localizing}
+            onChange={(next) => { setPref(next); setPrefState(next) }}
+          />
 
           {/* Progressive-blur top bar: stacked blur layers (increasing radius
               toward the top) + an opaque tint lip, so content blurs and dissolves
