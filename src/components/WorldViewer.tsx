@@ -16,7 +16,6 @@ import { DossierControls } from './DossierControls'
 import { localizeDossier } from '../lib/localize'
 import { termRegex } from '../lib/glossary'
 
-
 interface Props {
   panoramaUrl: string
   /** Equirectangular depth PNG for parallax; when absent, computed in-browser. */

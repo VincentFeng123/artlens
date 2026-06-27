@@ -57,10 +57,15 @@ export async function transformDossier(
 /**
  * Transform `source` into (lang, level), normalize to a full ArtworkMeta, and —
  * when `artworkId` is set — upsert it into `artwork_content`. Returns the
- * localized dossier. Mirrors steps 3–4 of `localize/index.ts` so an
- * EAGER-generated cache entry is byte-identical to the on-demand one (same
- * buildArtworkMeta normalization, same carried lang/level/palette_hex). The
- * upsert is non-fatal; only a failed transform throws (the caller decides).
+ * localized dossier. Short-circuits immediately (idempotent) when the
+ * (artworkId, lang, level) row already exists in `artwork_content` — so a
+ * repeat scan of an already-known artwork in a non-default language skips the
+ * Gemini call and the redundant DB write. The cache lookup is non-fatal: a
+ * lookup error falls through to the transform as normal. Mirrors steps 1 and
+ * 3–4 of `localize/index.ts` so an EAGER-generated cache entry is
+ * byte-identical to the on-demand one (same buildArtworkMeta normalization,
+ * same carried lang/level/palette_hex). The upsert is non-fatal; only a
+ * failed transform throws (the caller decides).
  */
 export async function localizeAndCache(
   admin: SupabaseClient,
@@ -69,6 +74,18 @@ export async function localizeAndCache(
   lang: Locale,
   level: ReadingLevel,
 ): Promise<ArtworkMeta> {
+  if (artworkId) {
+    try {
+      const { data: hit } = await admin
+        .from('artwork_content')
+        .select('dossier')
+        .eq('artwork_id', artworkId).eq('lang', lang).eq('level', level)
+        .maybeSingle()
+      if (hit?.dossier) return hit.dossier as ArtworkMeta
+    } catch (e) {
+      console.error('eager-gen cache lookup failed (continuing)', e)
+    }
+  }
   const out = await transformDossier(source, lang, level)
   const localized = buildArtworkMeta(out, { demo: Boolean(source.demo) })
   localized.lang = lang

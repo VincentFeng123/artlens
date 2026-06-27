@@ -8,6 +8,7 @@ import {
 import { getPanoramaProvider, hasPanoramaProvider } from '../_shared/panorama/index.ts'
 import { buildArtworkMeta, buildScenePrompt, DEMO_META } from '../_shared/prompt.ts'
 import { buildPaletteHex } from '../_shared/paletteColor.ts'
+import { SUPPORTED_LOCALES } from '../_shared/types.ts'
 import type { ArtworkMeta, Locale, ReadingLevel, RecognitionResult } from '../_shared/types.ts'
 import { routeRealization } from '../_shared/realization/route.ts'
 import { localizeAndCache } from '../_shared/localize.ts'
@@ -62,6 +63,10 @@ Deno.serve(async (req) => {
   } catch {
     return json({ status: 'error', error: 'Invalid request body' }, 400)
   }
+
+  const LEVELS: ReadingLevel[] = ['simple', 'medium', 'rich']
+  if (!(SUPPORTED_LOCALES as Locale[]).includes(lang)) lang = 'en'
+  if (!LEVELS.includes(level)) level = 'medium'
 
   // Demo short-circuit: no recognizer key configured anywhere.
   if (!hasRecognitionKey()) {
