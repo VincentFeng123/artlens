@@ -20,10 +20,39 @@ type Env = Record<string, string | undefined>
 
 const DEMO_PANORAMA = '/demo-panorama.png'
 
+/**
+ * Shared dev localize cache, keyed `${artwork_id}:${lang}:${level}`. Written by
+ * the eager-gen in runScan AND by the /api/localize handler (plugin.ts), and read
+ * by /api/localize — so a pre-entry selection is warm when WorldViewer requests it.
+ */
+export const localizeCache = new Map<string, ArtworkMeta>()
+export function localizeCacheKey(artworkId: string, lang: Locale, level: ReadingLevel): string {
+  return `${artworkId}:${lang}:${level}`
+}
+
+/** Fire-and-forget dev eager localization (mirror of scan/index.ts). Non-fatal. */
+function eagerLocalizeDev(
+  base: ArtworkMeta,
+  artworkId: string,
+  lang: Locale,
+  level: ReadingLevel,
+  env: Env,
+): void {
+  if (lang === 'en' && level === 'medium') return
+  if (!env.GEMINI_API_KEY) return // localizeNode needs the Gemini key
+  const key = localizeCacheKey(artworkId, lang, level)
+  if (localizeCache.has(key)) return
+  void localizeNode(base, lang, level, env)
+    .then((m) => { localizeCache.set(key, m) })
+    .catch((e) => console.error('[dev-api] eager-gen failed (non-fatal)', e))
+}
+
 export async function runScan(
   imageBase64: string,
   mime: string,
   env: Env,
+  lang: Locale = 'en',
+  level: ReadingLevel = 'medium',
 ): Promise<ScanResponse> {
   const provider = (env.RECOGNITION_PROVIDER ?? 'claude').toLowerCase()
   if (!hasRecognitionKey(provider, env)) {
@@ -45,6 +74,9 @@ export async function runScan(
   const title = meta.title
   const artist = meta.artist
   const artwork_id = djb2(title + '|' + artist).toString(16)
+
+  // Eager-localize concurrently with panorama generation (mirror of scan/index.ts).
+  eagerLocalizeDev(meta, artwork_id, lang, level, env)
 
   const scene = buildScenePrompt(recognition)
   const pano = (

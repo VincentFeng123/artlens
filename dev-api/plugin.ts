@@ -8,7 +8,7 @@
 // iOS Safari to abort it (~60s inactivity timeout). The phone polls /api/job-status.
 
 import type { Plugin } from 'vite'
-import { localizeNode, runScan } from './providers'
+import { localizeCache, localizeCacheKey, localizeNode, runScan } from './providers'
 import type { ArtworkMeta, Locale, ReadingLevel } from '../shared/types'
 
 type Env = Record<string, string | undefined>
@@ -26,7 +26,6 @@ interface JobRecord {
 
 export function artlensDevApi(env: Env): Plugin {
   const jobs = new Map<string, JobRecord>()
-  const localizeCache = new Map<string, ArtworkMeta>()
 
   return {
     name: 'artlens-dev-api',
@@ -39,7 +38,7 @@ export function artlensDevApi(env: Env): Plugin {
           res.end('POST required')
           return
         }
-        let body: { image?: string; mime?: string }
+        let body: { image?: string; mime?: string; lang?: string; level?: string }
         try {
           body = await readJson(req)
         } catch {
@@ -55,7 +54,13 @@ export function artlensDevApi(env: Env): Plugin {
         jobs.set(jobId, { status: 'generating' })
 
         // Recognition + generation run in the background; the client polls.
-        runScan(body.image, body.mime ?? 'image/jpeg', env)
+        runScan(
+          body.image,
+          body.mime ?? 'image/jpeg',
+          env,
+          (body.lang as Locale) ?? 'en',
+          (body.level as ReadingLevel) ?? 'medium',
+        )
           .then((r) => {
             if (r.status === 'ready') {
               jobs.set(jobId, {
@@ -158,7 +163,7 @@ export function artlensDevApi(env: Env): Plugin {
           return
         }
 
-        const cacheKey = `${artwork_id}:${lang}:${level}`
+        const cacheKey = localizeCacheKey(artwork_id, lang, level)
         const cached = localizeCache.get(cacheKey)
         if (cached) {
           sendJson(res, { meta: cached })
