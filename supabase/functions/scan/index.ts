@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       panorama_url: DEMO_PANORAMA,
       title: DEMO_META.title,
       artist: DEMO_META.artist,
-      meta: DEMO_META,
+      meta: { ...DEMO_META, palette_hex: buildPaletteHex(DEMO_META.palette) },
       artwork_id: null,
       demo: true,
     })

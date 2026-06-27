@@ -27,7 +27,7 @@ export function buildLocalizePrompt(dossier: RecognitionResult, lang: Locale, le
   return [
     `You are a literary translator and editor for a museum app. Rewrite the artwork dossier below into ${LOCALE_NAMES[lang]}.`,
     `READING LEVEL: ${LEVEL_RUBRIC[level]}`,
-    `Translate/adapt EVERY human-readable prose field: hook, story, brushwork, materiality, scale_note, palette (the colour LABELS), palette_notes, symbolism[].detail, symbolism[].meaning, hidden_details, process, why_made, legacy, debates, mood, style, medium, glossary[].term, glossary[].definition.`,
+    `Translate/adapt EVERY human-readable prose field: hook, provenance, story, brushwork, materiality, scale_note, palette (the colour LABELS), palette_notes, symbolism[].detail, symbolism[].meaning, hidden_details, process, why_made, legacy, debates, mood, style, medium, glossary[].term, glossary[].definition.`,
     `Keep these fields BYTE-FOR-BYTE UNCHANGED (do not translate or alter): title, artist, artist_life, year, dimensions, location, confidence, recognized, similar_works, symbolism[].box, palette_hex, and any world-generation fields (scene_description, render_negatives, spatial_layout, horizon, perspective, light, vantage, offscreen, technique).`,
     `Preserve the EXACT JSON structure and array lengths (palette and palette_notes stay index-aligned). Same facts, same depth — only the wording changes.`,
     `Return ONLY the JSON object, no prose, no code fences.`,
