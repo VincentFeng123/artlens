@@ -8,8 +8,8 @@
 // iOS Safari to abort it (~60s inactivity timeout). The phone polls /api/job-status.
 
 import type { Plugin } from 'vite'
-import { runScan } from './providers'
-import type { ArtworkMeta } from '../shared/types'
+import { localizeNode, runScan } from './providers'
+import type { ArtworkMeta, Locale, ReadingLevel } from '../shared/types'
 
 type Env = Record<string, string | undefined>
 
@@ -20,11 +20,13 @@ interface JobRecord {
   title?: string
   artist?: string
   meta?: ArtworkMeta
+  artwork_id?: string | null
   error?: string
 }
 
 export function artlensDevApi(env: Env): Plugin {
   const jobs = new Map<string, JobRecord>()
+  const localizeCache = new Map<string, ArtworkMeta>()
 
   return {
     name: 'artlens-dev-api',
@@ -63,6 +65,7 @@ export function artlensDevApi(env: Env): Plugin {
                 title: r.title,
                 artist: r.artist,
                 meta: r.meta,
+                artwork_id: r.artwork_id ?? null,
               })
             } else {
               jobs.set(jobId, {
@@ -122,7 +125,54 @@ export function artlensDevApi(env: Env): Plugin {
           title: job.title ?? null,
           artist: job.artist ?? null,
           meta: job.meta ?? null,
+          artwork_id: job.artwork_id ?? null,
         })
+      })
+
+      // POST /api/localize { artwork_id, lang, level, base } -> { meta }
+      // In-memory cache keyed by `${artwork_id}:${lang}:${level}`.
+      server.middlewares.use('/api/localize', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end('POST required')
+          return
+        }
+        let body: { artwork_id?: string; lang?: string; level?: string; base?: unknown }
+        try {
+          body = await readJson(req)
+        } catch {
+          sendJson(res, { error: 'invalid request body' })
+          return
+        }
+        const { artwork_id, base } = body
+        const lang = (body.lang ?? 'en') as Locale
+        const level = (body.level ?? 'medium') as ReadingLevel
+        if (!artwork_id || !base) {
+          sendJson(res, { error: 'artwork_id and base required' })
+          return
+        }
+
+        // English/Medium is the base itself — no transform needed.
+        if (lang === 'en' && level === 'medium') {
+          sendJson(res, { meta: base })
+          return
+        }
+
+        const cacheKey = `${artwork_id}:${lang}:${level}`
+        const cached = localizeCache.get(cacheKey)
+        if (cached) {
+          sendJson(res, { meta: cached })
+          return
+        }
+
+        try {
+          const meta = await localizeNode(base as ArtworkMeta, lang, level, env)
+          localizeCache.set(cacheKey, meta)
+          sendJson(res, { meta })
+        } catch (e) {
+          console.error('[dev-api] localize failed, returning base', e)
+          sendJson(res, { meta: { ...(base as ArtworkMeta), lang, level } })
+        }
       })
 
       // GET /api/proxy?url=... -> streams a remote image same-origin (no CORS taint)
@@ -150,7 +200,7 @@ export function artlensDevApi(env: Env): Plugin {
 
 function readJson(req: {
   on: (ev: string, cb: (arg?: unknown) => void) => void
-}): Promise<{ image?: string; mime?: string; job_id?: string }> {
+}): Promise<{ image?: string; mime?: string; job_id?: string; artwork_id?: string; lang?: string; level?: string; base?: unknown }> {
   return new Promise((resolve, reject) => {
     let data = ''
     req.on('data', (chunk) => {

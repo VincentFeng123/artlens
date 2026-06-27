@@ -8,11 +8,13 @@ import {
   RECOGNITION_PROMPT,
   RECOGNITION_JSON_SCHEMA,
   buildArtworkMeta,
+  buildLocalizePrompt,
   buildScenePrompt,
   parseRecognitionJson,
   DEMO_META,
 } from '../shared/prompt'
-import type { RecognitionResult, ScanResponse } from '../shared/types'
+import type { ArtworkMeta, Locale, ReadingLevel, RecognitionResult, ScanResponse } from '../shared/types'
+import { paletteColor } from '../src/lib/paletteColor'
 
 type Env = Record<string, string | undefined>
 
@@ -31,15 +33,18 @@ export async function runScan(
       panorama_url: DEMO_PANORAMA,
       title: DEMO_META.title,
       artist: DEMO_META.artist,
-      meta: DEMO_META,
+      meta: { ...DEMO_META, palette_hex: DEMO_META.palette.map(paletteColor) },
+      artwork_id: djb2(DEMO_META.title + '|' + DEMO_META.artist).toString(16),
       demo: true,
     }
   }
 
   const recognition = await recognize(provider, imageBase64, mime, env)
   const meta = buildArtworkMeta(recognition)
+  meta.palette_hex = meta.palette.map(paletteColor)
   const title = meta.title
   const artist = meta.artist
+  const artwork_id = djb2(title + '|' + artist).toString(16)
 
   const scene = buildScenePrompt(recognition)
   const pano = (
@@ -54,6 +59,7 @@ export async function runScan(
       title,
       artist,
       meta,
+      artwork_id,
     }
   }
 
@@ -66,6 +72,7 @@ export async function runScan(
       title,
       artist,
       meta,
+      artwork_id,
     }
   }
 
@@ -86,11 +93,12 @@ export async function runScan(
       title,
       artist,
       meta,
+      artwork_id,
     }
   }
 
   // No generator configured → recognized (real dossier), but serve the demo world.
-  return { status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, demo: true }
+  return { status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, artwork_id, demo: true }
 }
 
 // ── Pollinations (keyless image generation) ────────────────────────────────
@@ -512,6 +520,59 @@ async function fetchGeminiWithRetry(
     res = await fetch(url, init)
   }
   return res
+}
+
+// ── Localize (dev mirror of supabase/functions/_shared/localize.ts) ──────────
+/**
+ * Transform a base dossier into (lang, level) via Gemini, returning the same
+ * shape. Mirrors transformDossier from the Edge Function, using the Gemini REST
+ * call shape already established in recognizeGemini.
+ * Throws on hard failure; the caller in plugin.ts falls back to the base dossier.
+ */
+export async function localizeNode(
+  base: ArtworkMeta,
+  lang: Locale,
+  level: ReadingLevel,
+  env: Env,
+): Promise<ArtworkMeta> {
+  const apiKey = env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set')
+  const model = env.GEMINI_MODEL ?? 'gemini-3.5-flash'
+
+  const res = await fetchGeminiWithRetry(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: buildLocalizePrompt(base, lang, level) }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 8192 },
+      }),
+    },
+  )
+  if (!res.ok) throw new Error(`Gemini localize ${res.status}: ${await res.text()}`)
+  const data = await res.json()
+  const text: string =
+    data?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text ?? '')
+      .join('') ?? ''
+  if (!text) throw new Error('Gemini localize returned no text')
+
+  const out = parseRecognitionJson(text)
+  // Carry structurally-fixed fields through verbatim — never trust the model to.
+  out.title = base.title; out.artist = base.artist; out.artist_life = base.artist_life
+  out.year = base.year; out.dimensions = base.dimensions; out.location = base.location
+  out.similar_works = base.similar_works; out.palette_hex = base.palette_hex
+  out.recognized = base.recognized; out.confidence = base.confidence
+  if (Array.isArray(out.symbolism) && Array.isArray(base.symbolism)) {
+    out.symbolism.forEach((s, i) => { if (base.symbolism[i]) s.box = base.symbolism[i].box })
+  }
+
+  const localized = buildArtworkMeta(out, { demo: Boolean(base.demo) })
+  localized.lang = lang
+  localized.level = level
+  localized.palette_hex = base.palette_hex
+  return localized
 }
 
 function sleep(ms: number): Promise<void> {
