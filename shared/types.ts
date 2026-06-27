@@ -180,6 +180,10 @@ export interface RecognitionResult {
   figure_coverage?: number
   /** Coarse depth structure of the scene. */
   depth_profile?: DepthProfile
+  /** Which language this dossier is rendered in (default 'en'). */
+  lang?: Locale
+  /** Which reading level this dossier is rendered at (default 'medium'). */
+  level?: ReadingLevel
 }
 
 /**

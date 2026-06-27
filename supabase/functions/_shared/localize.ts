@@ -42,5 +42,14 @@ export async function transformDossier(
   if (Array.isArray(out.symbolism) && Array.isArray(base.symbolism)) {
     out.symbolism.forEach((s, i) => { if (base.symbolism[i]) s.box = base.symbolism[i].box })
   }
+  out.scene_description = base.scene_description
+  out.render_negatives = base.render_negatives
+  out.spatial_layout = base.spatial_layout
+  out.horizon = base.horizon
+  out.perspective = base.perspective
+  out.light = base.light
+  out.vantage = base.vantage
+  out.offscreen = base.offscreen
+  out.technique = base.technique
   return out
 }
