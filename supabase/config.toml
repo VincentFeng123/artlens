@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.job-status]
 verify_jwt = false
+
+[functions.localize]
+verify_jwt = false
