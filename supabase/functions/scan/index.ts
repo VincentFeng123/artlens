@@ -8,12 +8,37 @@ import {
 import { getPanoramaProvider, hasPanoramaProvider } from '../_shared/panorama/index.ts'
 import { buildArtworkMeta, buildScenePrompt, DEMO_META } from '../_shared/prompt.ts'
 import { buildPaletteHex } from '../_shared/paletteColor.ts'
-import type { RecognitionResult } from '../_shared/types.ts'
+import type { ArtworkMeta, Locale, ReadingLevel, RecognitionResult } from '../_shared/types.ts'
 import { routeRealization } from '../_shared/realization/route.ts'
+import { localizeAndCache } from '../_shared/localize.ts'
 
 // Relative path — the client resolves it against the app origin, which serves
 // the bundled demo panorama. Used whenever generation can't (or needn't) run.
 const DEMO_PANORAMA = '/demo-panorama.png'
+
+/**
+ * Fire-and-forget eager localization, concurrent with panorama generation, so
+ * the world opens in the chosen language with no shimmer. Non-fatal: any failure
+ * is swallowed (logged) and never affects the scan. No-ops for the base
+ * (en, medium) or when no artwork id exists.
+ */
+function eagerLocalize(
+  admin: SupabaseClient,
+  artworkId: string | null,
+  source: ArtworkMeta,
+  lang: Locale,
+  level: ReadingLevel,
+): void {
+  if (!artworkId) return
+  if (lang === 'en' && level === 'medium') return
+  const work = localizeAndCache(admin, artworkId, source, lang, level)
+    .then(() => {})
+    .catch((e) => console.warn('eager-gen failed (non-fatal)', errMessage(e)))
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } })
+    .EdgeRuntime
+  if (runtime?.waitUntil) runtime.waitUntil(work)
+  else work.catch((e) => console.error('eager-gen failed', e))
+}
 
 Deno.serve(async (req) => {
   const pre = preflight(req)
@@ -22,13 +47,17 @@ Deno.serve(async (req) => {
     return json({ status: 'error', error: 'POST required' }, 405)
   }
 
-  // Parse body { image: base64, mime }
+  // Parse body { image: base64, mime, lang, level }
   let image = ''
   let mime = 'image/jpeg'
+  let lang: Locale = 'en'
+  let level: ReadingLevel = 'medium'
   try {
     const body = await req.json()
     image = body.image
     mime = body.mime ?? 'image/jpeg'
+    lang = body.lang ?? 'en'
+    level = body.level ?? 'medium'
     if (!image) throw new Error('missing image')
   } catch {
     return json({ status: 'error', error: 'Invalid request body' }, 400)
@@ -88,6 +117,10 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle()
     if (hit?.panorama_url) {
+      const cachedMeta = { ...meta, title: hit.title ?? title, artist: hit.artist ?? artist }
+      // Cache opens fast (~1s) and may beat eager-gen; that's fine — WorldViewer's
+      // on-load localize covers the gap and this warms the cache for next time.
+      eagerLocalize(admin, hit.id, cachedMeta, lang, level)
       return json({
         status: 'ready',
         panorama_url: hit.panorama_url,
@@ -95,7 +128,7 @@ Deno.serve(async (req) => {
         realization: hit.realization ?? realization,
         title: hit.title ?? title,
         artist: hit.artist ?? artist,
-        meta: { ...meta, title: hit.title ?? title, artist: hit.artist ?? artist },
+        meta: cachedMeta,
         artwork_id: hit.id,
       })
     }
@@ -144,6 +177,7 @@ Deno.serve(async (req) => {
 
   // 5b) No usable generator → recognized (real dossier), but serve the demo world.
   if (!hasPanoramaProvider()) {
+    eagerLocalize(admin, artwork?.id ?? null, meta, lang, level)
     return json({ status: 'ready', panorama_url: DEMO_PANORAMA, title, artist, meta, artwork_id: artwork?.id ?? null, demo: true })
   }
 
@@ -171,6 +205,10 @@ Deno.serve(async (req) => {
     .EdgeRuntime
   if (runtime?.waitUntil) runtime.waitUntil(work)
   else work.catch((e) => console.error('background generation failed', e))
+
+  // Eager-generate the chosen variant concurrently with the panorama (30–180s),
+  // so it's cached well before WorldViewer's localize effect requests it.
+  eagerLocalize(admin, artwork?.id ?? null, meta, lang, level)
 
   // Recognition is already done — hand the dossier to the client to hold while
   // it polls job-status for the panorama.

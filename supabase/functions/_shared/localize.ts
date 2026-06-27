@@ -1,6 +1,6 @@
-import type { RecognitionResult } from './types.ts'
-import type { Locale, ReadingLevel } from './types.ts'
-import { buildLocalizePrompt, parseRecognitionJson } from './prompt.ts'
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
+import type { ArtworkMeta, Locale, ReadingLevel, RecognitionResult } from './types.ts'
+import { buildArtworkMeta, buildLocalizePrompt, parseRecognitionJson } from './prompt.ts'
 
 /**
  * Transform a base dossier into (lang, level) via Gemini, returning the same
@@ -52,4 +52,35 @@ export async function transformDossier(
   out.offscreen = base.offscreen
   out.technique = base.technique
   return out
+}
+
+/**
+ * Transform `source` into (lang, level), normalize to a full ArtworkMeta, and —
+ * when `artworkId` is set — upsert it into `artwork_content`. Returns the
+ * localized dossier. Mirrors steps 3–4 of `localize/index.ts` so an
+ * EAGER-generated cache entry is byte-identical to the on-demand one (same
+ * buildArtworkMeta normalization, same carried lang/level/palette_hex). The
+ * upsert is non-fatal; only a failed transform throws (the caller decides).
+ */
+export async function localizeAndCache(
+  admin: SupabaseClient,
+  artworkId: string | null,
+  source: ArtworkMeta,
+  lang: Locale,
+  level: ReadingLevel,
+): Promise<ArtworkMeta> {
+  const out = await transformDossier(source, lang, level)
+  const localized = buildArtworkMeta(out, { demo: Boolean(source.demo) })
+  localized.lang = lang
+  localized.level = level
+  localized.palette_hex = source.palette_hex
+  if (artworkId) {
+    try {
+      await admin.from('artwork_content')
+        .upsert({ artwork_id: artworkId, lang, level, dossier: localized })
+    } catch (e) {
+      console.error('eager-gen cache upsert failed (non-fatal)', e)
+    }
+  }
+  return localized
 }
