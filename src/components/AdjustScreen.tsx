@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { CornerEditor } from '../lib/cornerEditor'
 import { ensureCv, detect, warp } from '../lib/rectify'
+import { DossierControls } from './DossierControls'
+import { getPref, setPref } from '../lib/contentPref'
 
 interface Props {
   /** The freshly captured photo. */
@@ -43,6 +45,7 @@ export function AdjustScreen({ capture, onConfirm, onRetake }: Props) {
   const sourceRef = useRef<HTMLCanvasElement | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'working' | 'error'>('loading')
   const [statusText, setStatusText] = useState('Reading photo…')
+  const [pref, setLocalPref] = useState(getPref)
 
   useEffect(() => {
     let cancelled = false
@@ -147,6 +150,12 @@ export function AdjustScreen({ capture, onConfirm, onRetake }: Props) {
         )}
       </div>
       <p className="adjust__hint">Drag the four corners onto the artwork's edges.</p>
+      <div className="adjust__controls">
+        <DossierControls
+          value={pref}
+          onChange={(next) => { setPref(next); setLocalPref(next) }}
+        />
+      </div>
       <div className="adjust__toolbar">
         <button className="btn-ghost" onClick={reDetect} disabled={busy}>
           Re-detect
