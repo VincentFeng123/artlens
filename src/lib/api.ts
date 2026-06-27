@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-import type { ArtworkMeta, JobStatusResponse, Realization, ScanResponse } from '../../shared/types'
+import type { ArtworkMeta, JobStatusResponse, Locale, Realization, ReadingLevel, ScanResponse } from '../../shared/types'
 import { DEMO_META } from '../../shared/prompt'
+import { getPref } from './contentPref'
 
 const DEMO_PANORAMA = '/demo-panorama.png'
 const POLL_INTERVAL = 1500
@@ -225,7 +226,10 @@ function demoOutcome(): ScanOutcome {
   }
 }
 
-function toRequestBody(jpeg: Blob): Promise<{ image: string; mime: string }> {
+function toRequestBody(
+  jpeg: Blob,
+): Promise<{ image: string; mime: string; lang: Locale; level: ReadingLevel }> {
+  const { lang, level } = getPref()
   return jpeg.arrayBuffer().then((buf) => {
     const bytes = new Uint8Array(buf)
     let binary = ''
@@ -233,7 +237,7 @@ function toRequestBody(jpeg: Blob): Promise<{ image: string; mime: string }> {
     for (let i = 0; i < bytes.length; i += CHUNK) {
       binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
     }
-    return { image: btoa(binary), mime: jpeg.type || 'image/jpeg' }
+    return { image: btoa(binary), mime: jpeg.type || 'image/jpeg', lang, level }
   })
 }
 
