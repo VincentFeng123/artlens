@@ -827,31 +827,14 @@ button {
   transition: transform 0.42s var(--ease), border-radius 0.22s var(--ease);
   will-change: transform;
 }
-.world__grabber {
-  flex: none;
-  display: grid;
-  place-items: center;
-  /* Generous padding makes the touch target ~44px tall (full width) while the
-     visible handle stays a thin bar — the hit area is bigger than the handle. */
-  padding: 22px 0 18px;
-  cursor: grab;
-  touch-action: none;
-  /* Sit above the progressive-blur bar so the handle stays crisp. */
-  position: relative;
-  z-index: 2;
-}
-.world__handle--card {
-  background: rgba(255, 255, 255, 0.26);
-}
-
-/* Progressive-blur top bar (iOS-style): stacked layers with increasing blur
+/* Progressive-blur top edge (iOS-style): stacked layers with increasing blur
    radius toward the top, plus an opaque tint lip. Content stays crisp lower
-   down and blurs + dissolves into the bar under the handle — never a hard cut. */
+   down and blurs + dissolves into the frosted top as it scrolls. */
 .world__topbar {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 132px;
-  z-index: 1; /* above the scrolling content, below the grabber */
+  height: 56px;
+  z-index: 1; /* above the scrolling content */
   pointer-events: none;
 }
 .world__blur {
@@ -900,7 +883,10 @@ button {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 6px 26px max(40px, calc(env(safe-area-inset-bottom) + 28px));
+  /* No grabber/controls above the content now — clear the notch + a small gap so
+     the hero sits below the frosted top edge. */
+  padding: max(38px, calc(env(safe-area-inset-top) + 14px)) 26px
+    max(40px, calc(env(safe-area-inset-bottom) + 28px));
 }
 
 .world__hero {

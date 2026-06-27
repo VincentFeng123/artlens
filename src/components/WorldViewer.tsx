@@ -11,8 +11,7 @@ import type { LookMode } from '../three/DeviceOrientationController'
 import { type ArtworkMeta, type GlossaryTerm, type Locale, type Realization, type SymbolNote } from '../../shared/types'
 import { paletteColor } from '../lib/paletteColor'
 import { cropManyToBoxes } from '../lib/crop'
-import { getPref, setPref } from '../lib/contentPref'
-import { DossierControls } from './DossierControls'
+import { getPref } from '../lib/contentPref'
 import { localizeDossier } from '../lib/localize'
 import { termRegex } from '../lib/glossary'
 
@@ -79,18 +78,18 @@ export function WorldViewer({
   onScanAnother,
 }: Props) {
   const [meta, setMeta] = useState<ArtworkMeta>(initialMeta)
-  const [pref, setPrefState] = useState(getPref)
-  const [localizing, setLocalizing] = useState(false)
+  // The dossier language/level is chosen before entry (on the Adjust screen) and
+  // fixed for the session — read once; the effect below fetches that variant so
+  // the world opens already in the chosen language.
+  const [pref] = useState(getPref)
   // Reset to the base when a new artwork is scanned.
   useEffect(() => { setMeta(initialMeta) }, [initialMeta])
 
   useEffect(() => {
     let cancelled = false
     if (pref.lang === 'en' && pref.level === 'medium') { setMeta(initialMeta); return }
-    setLocalizing(true)
     localizeDossier({ artworkId, lang: pref.lang, level: pref.level, base: initialMeta })
       .then((m) => { if (!cancelled) setMeta(m) })
-      .finally(() => { if (!cancelled) setLocalizing(false) })
     return () => { cancelled = true }
   }, [pref.lang, pref.level, artworkId, initialMeta])
 
@@ -522,19 +521,9 @@ export function WorldViewer({
             }
           }}
         >
-          <div className="world__grabber" {...dragHandlers}>
-            <span className="world__handle world__handle--card" />
-          </div>
-
-          <DossierControls
-            value={pref}
-            busy={localizing}
-            onChange={(next) => { setPref(next); setPrefState(next) }}
-          />
-
-          {/* Progressive-blur top bar: stacked blur layers (increasing radius
+          {/* Progressive-blur top edge: stacked blur layers (increasing radius
               toward the top) + an opaque tint lip, so content blurs and dissolves
-              into the bar under the handle — never a hard cut. */}
+              into the frosted top as it scrolls — never a hard cut. */}
           <div className="world__topbar" aria-hidden>
             <div className="world__blur world__blur--1" />
             <div className="world__blur world__blur--2" />
