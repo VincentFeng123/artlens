@@ -8,9 +8,18 @@ import {
 } from 'react'
 import { Skybox } from '../three/Skybox'
 import type { LookMode } from '../three/DeviceOrientationController'
-import type { ArtworkMeta, GlossaryTerm, Realization, SymbolNote } from '../../shared/types'
+import { SUPPORTED_LOCALES, type ArtworkMeta, type GlossaryTerm, type Locale, type ReadingLevel, type Realization, type SymbolNote } from '../../shared/types'
 import { paletteColor } from '../lib/paletteColor'
 import { cropManyToBoxes } from '../lib/crop'
+import { getPref, setPref } from '../lib/contentPref'
+import { localizeDossier } from '../lib/localize'
+import { termRegex } from '../lib/glossary'
+
+const LANG_LABEL: Record<Locale, string> = {
+  en: 'English', es: 'Español', 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文',
+  fr: 'Français', de: 'Deutsch', ja: '日本語', ko: '한국어', pt: 'Português',
+}
+const LEVELS: ReadingLevel[] = ['simple', 'medium', 'rich']
 
 interface Props {
   panoramaUrl: string
@@ -69,10 +78,27 @@ export function WorldViewer({
   panoramaUrl,
   depthUrl,
   realization,
-  meta,
+  meta: initialMeta,
   sourceImage,
+  artworkId,
   onScanAnother,
 }: Props) {
+  const [meta, setMeta] = useState<ArtworkMeta>(initialMeta)
+  const [pref, setPrefState] = useState(getPref)
+  const [localizing, setLocalizing] = useState(false)
+  // Reset to the base when a new artwork is scanned.
+  useEffect(() => { setMeta(initialMeta) }, [initialMeta])
+
+  useEffect(() => {
+    let cancelled = false
+    if (pref.lang === 'en' && pref.level === 'medium') { setMeta(initialMeta); return }
+    setLocalizing(true)
+    localizeDossier({ artworkId, lang: pref.lang, level: pref.level, base: initialMeta })
+      .then((m) => { if (!cancelled) setMeta(m) })
+      .finally(() => { if (!cancelled) setLocalizing(false) })
+    return () => { cancelled = true }
+  }, [pref.lang, pref.level, artworkId, initialMeta])
+
   const hostRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<LookMode>('pointer')
@@ -479,7 +505,7 @@ export function WorldViewer({
                     <span
                       key={i}
                       className="world__dot"
-                      style={{ background: paletteColor(c) }}
+                      style={{ background: meta.palette_hex?.[i] ?? paletteColor(c) }}
                     />
                   ))}
                 </span>
@@ -505,6 +531,38 @@ export function WorldViewer({
             <span className="world__handle world__handle--card" />
           </div>
 
+          <div className={`world__controls${localizing ? ' is-busy' : ''}`}>
+            <details className="world__lang">
+              <summary className="world__lang-pill">{LANG_LABEL[pref.lang]}</summary>
+              <ul className="world__lang-menu">
+                {SUPPORTED_LOCALES.map((l) => (
+                  <li key={l}>
+                    <button
+                      type="button"
+                      className={l === pref.lang ? 'is-active' : ''}
+                      onClick={(e) => {
+                        const next = { ...pref, lang: l }
+                        setPref(next); setPrefState(next)
+                        ;(e.currentTarget.closest('details') as HTMLDetailsElement).open = false
+                      }}
+                    >{LANG_LABEL[l]}</button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+            <input
+              className="world__level"
+              type="range" min={0} max={2} step={1}
+              value={LEVELS.indexOf(pref.level)}
+              aria-label="Reading level"
+              onChange={(e) => {
+                const next = { ...pref, level: LEVELS[Number(e.target.value)] }
+                setPref(next); setPrefState(next)
+              }}
+            />
+            <span className="world__level-label">{pref.level}</span>
+          </div>
+
           {/* Progressive-blur top bar: stacked blur layers (increasing radius
               toward the top) + an opaque tint lip, so content blurs and dissolves
               into the bar under the handle — never a hard cut. */}
@@ -528,7 +586,7 @@ export function WorldViewer({
             {meta.story && (
               <Section label="The story">
                 <p className="world__prose">
-                  {injectGlossary(meta.story, glossary, usedTerms)}
+                  {injectGlossary(meta.story, glossary, usedTerms, meta.lang ?? 'en')}
                 </p>
               </Section>
             )}
@@ -583,12 +641,12 @@ export function WorldViewer({
               <Section label="How it was made">
                 {meta.brushwork && (
                   <p className="world__prose">
-                    {injectGlossary(meta.brushwork, glossary, usedTerms)}
+                    {injectGlossary(meta.brushwork, glossary, usedTerms, meta.lang ?? 'en')}
                   </p>
                 )}
                 {meta.materiality && (
                   <p className="world__prose">
-                    {injectGlossary(meta.materiality, glossary, usedTerms)}
+                    {injectGlossary(meta.materiality, glossary, usedTerms, meta.lang ?? 'en')}
                   </p>
                 )}
                 {meta.scale_note && <p className="world__note">{meta.scale_note}</p>}
@@ -605,7 +663,7 @@ export function WorldViewer({
                       <>
                         <span
                           className="world__swatch-chip"
-                          style={{ background: paletteColor(c) }}
+                          style={{ background: meta.palette_hex?.[i] ?? paletteColor(c) }}
                         />
                         <span className="world__swatch-name">{c}</span>
                       </>
@@ -644,7 +702,7 @@ export function WorldViewer({
             {meta.process && (
               <Section label="Underneath">
                 <p className="world__prose">
-                  {injectGlossary(meta.process, glossary, usedTerms)}
+                  {injectGlossary(meta.process, glossary, usedTerms, meta.lang ?? 'en')}
                 </p>
               </Section>
             )}
@@ -652,7 +710,7 @@ export function WorldViewer({
             {meta.why_made && (
               <Section label="Why it was made">
                 <p className="world__prose">
-                  {injectGlossary(meta.why_made, glossary, usedTerms)}
+                  {injectGlossary(meta.why_made, glossary, usedTerms, meta.lang ?? 'en')}
                 </p>
               </Section>
             )}
@@ -661,13 +719,13 @@ export function WorldViewer({
               <Section label="Why it still matters">
                 {meta.legacy && (
                   <p className="world__prose">
-                    {injectGlossary(meta.legacy, glossary, usedTerms)}
+                    {injectGlossary(meta.legacy, glossary, usedTerms, meta.lang ?? 'en')}
                   </p>
                 )}
                 {meta.debates && (
                   <p className="world__prose">
                     <span className="world__inline-label">Still argued — </span>
-                    {injectGlossary(meta.debates, glossary, usedTerms)}
+                    {injectGlossary(meta.debates, glossary, usedTerms, meta.lang ?? 'en')}
                   </p>
                 )}
               </Section>
@@ -790,6 +848,7 @@ function injectGlossary(
   text: string,
   glossary: GlossaryTerm[],
   used: Set<string>,
+  lang: Locale = 'en',
   cap = 2,
 ): ReactNode {
   if (!text || glossary.length === 0) return text
@@ -805,8 +864,7 @@ function injectGlossary(
     let best: { idx: number; matched: string; g: GlossaryTerm } | null = null
     for (const g of avail) {
       if (used.has(g.term.toLowerCase())) continue
-      const esc = g.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const m = rest.match(new RegExp(`\\b${esc}(?:e?s)?\\b`, 'i'))
+      const m = rest.match(termRegex(g.term, lang))
       if (!m || m.index == null) continue
       if (
         !best ||
