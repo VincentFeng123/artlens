@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { createLookControls, type LookControls, type LookMode } from './DeviceOrientationController'
 import { Atmosphere } from './Atmosphere'
+import { featherSeam } from './seam'
 
 export interface SkyboxOptions {
   /** Long-edge cap for the panorama texture (mobile GPU memory). Default 4096. */
@@ -150,7 +151,7 @@ export class Skybox {
   async loadPanorama(url: string): Promise<void> {
     const img = await loadImage(url)
     if (this.disposed) return // unmounted while the image was loading
-    const source = downscaleIfNeeded(img, this.maxTextureSize)
+    const source = featherPanorama(downscaleIfNeeded(img, this.maxTextureSize))
 
     const texture = new THREE.Texture(source)
     texture.colorSpace = THREE.SRGBColorSpace
@@ -359,6 +360,33 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
     img.src = url
   })
+}
+
+/**
+ * Draw the panorama to a canvas and feather the ±180° wrap seam so the texture
+ * is tileable (no visible divider where the left and right edges meet). Falls
+ * back to the original source if a 2D context / pixel access isn't available.
+ */
+function featherPanorama(
+  src: HTMLImageElement | HTMLCanvasElement,
+): HTMLImageElement | HTMLCanvasElement {
+  const w = src instanceof HTMLCanvasElement ? src.width : src.naturalWidth
+  const h = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight
+  if (!w || !h) return src
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return src
+  try {
+    ctx.drawImage(src, 0, 0, w, h)
+    const imageData = ctx.getImageData(0, 0, w, h) // throws if the canvas is tainted
+    featherSeam(imageData.data, w, h)
+    ctx.putImageData(imageData, 0, 0)
+    return canvas
+  } catch {
+    return src // cross-origin taint or other failure → use the un-feathered source
+  }
 }
 
 function downscaleIfNeeded(
