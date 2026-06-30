@@ -1246,6 +1246,29 @@ button.world__swatch-btn {
   color: var(--fg-faint);
 }
 
+/* External feedback-form link at the foot of the dossier — dark-glass pill,
+   matching the ghost-button aesthetic (no border). */
+.world__form-link {
+  display: block;
+  width: fit-content;
+  margin: 22px auto 4px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(42, 42, 52, 0.55), rgba(15, 15, 22, 0.55));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--fg-dim);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease);
+}
+.world__form-link:hover {
+  color: var(--fg);
+}
+.world__form-link:active {
+  transform: scale(0.98);
+}
+
 /* Staggered reveal of the dossier on open */
 .world__card.is-open .world__scroll > * {
   animation: cardSectionIn 0.55s var(--ease) both;

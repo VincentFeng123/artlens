@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createElement, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { DossierControls, LANG_LABEL, LEVELS, type DossierPref } from './DossierControls'
+import { DossierControls, LANG_LABEL, LEVELS, LEVEL_LABEL, type DossierPref } from './DossierControls'
 
 // React 18 requires this flag for act() outside a test renderer.
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -31,7 +31,7 @@ describe('DossierControls', () => {
     expect(el.querySelector('.world__lang-pill')!.textContent).toBe(LANG_LABEL.ja)
     const slider = el.querySelector('.world__level') as HTMLInputElement
     expect(slider.value).toBe(String(LEVELS.indexOf('rich')))
-    expect(el.querySelector('.world__level-label')!.textContent).toBe('rich')
+    expect(el.querySelector('.world__level-label')!.textContent).toBe(LEVEL_LABEL.rich)
   })
 
   it('calls onChange with the picked language', () => {

@@ -6,7 +6,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 }
 
 export const LEVEL_RUBRIC: Record<ReadingLevel, string> = {
-  simple: 'Use short sentences and common, everyday words. No jargon or art-historical terms; if a term is unavoidable, explain it plainly. Keep the warmth and the facts, just make it effortless to read.',
+  simple: 'Write for a curious 8-year-old child. Use very short sentences and only the simplest, most common everyday words — picture-book plain. Absolutely no jargon or art-historical terms; if you must name something, explain it the way you would to a young kid. Stay warm, concrete, and a little playful, keep the true facts, and make every line effortless — noticeably shorter and simpler than the original.',
   medium: 'Keep the current voice — vivid, plain-spoken, a knowledgeable friend. Some art vocabulary is fine when it earns its place.',
   rich: 'Use precise art-historical vocabulary and a longer, more literary cadence. Assume an engaged, educated reader; do not dumb anything down.',
 }

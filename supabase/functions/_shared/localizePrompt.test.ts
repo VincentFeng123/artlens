@@ -9,6 +9,7 @@ describe('buildLocalizePrompt', () => {
     const p = buildLocalizePrompt(base, 'zh-Hans', 'simple')
     expect(p).toContain('Simplified Chinese')
     expect(p.toLowerCase()).toContain('short sentences')   // simple rubric
+    expect(p.toLowerCase()).toMatch(/8-year-old|child|kid/) // kids level is child-simple
   })
   it('embeds the source dossier and demands the same JSON shape + verbatim fields', () => {
     const p = buildLocalizePrompt(base, 'es', 'rich')

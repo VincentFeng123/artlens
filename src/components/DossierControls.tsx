@@ -9,6 +9,15 @@ export const LANG_LABEL: Record<Locale, string> = {
 /** Reading levels low→high, index-aligned to the slider stops (0,1,2). */
 export const LEVELS: ReadingLevel[] = ['simple', 'medium', 'rich']
 
+/**
+ * Friendly slider labels per level — DISPLAY ONLY. The stored {@link ReadingLevel}
+ * stays 'simple' | 'medium' | 'rich', so cache keys, the scan body, and the prompt
+ * rubric are unaffected; only the on-screen word changes.
+ */
+export const LEVEL_LABEL: Record<ReadingLevel, string> = {
+  simple: 'Kids', medium: 'Teens', rich: 'Adult',
+}
+
 export interface DossierPref {
   lang: Locale
   level: ReadingLevel
@@ -55,7 +64,7 @@ export function DossierControls({ value, onChange, busy = false }: Props) {
         aria-label="Reading level"
         onChange={(e) => onChange({ ...value, level: LEVELS[Number(e.target.value)] })}
       />
-      <span className="world__level-label">{value.level}</span>
+      <span className="world__level-label">{LEVEL_LABEL[value.level]}</span>
     </div>
   )
 }

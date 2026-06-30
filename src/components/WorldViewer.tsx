@@ -727,6 +727,15 @@ export function WorldViewer({
                 ? 'A curated demo world — connect a recognition key to step inside real paintings.'
                 : 'Story written by Artlens from the scanned artwork.'}
             </footer>
+
+            <a
+              className="world__form-link"
+              href="https://docs.google.com/forms/d/1JIrjDdK7nsQmr2ncYkApgFtv5UNDvdGMJbcayx3OS_c/viewform"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Fill out our form →
+            </a>
           </div>
         </article>
       </section>
