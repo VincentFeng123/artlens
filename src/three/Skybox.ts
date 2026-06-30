@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { createLookControls, type LookControls, type LookMode } from './DeviceOrientationController'
-import { Atmosphere } from './Atmosphere'
 import { featherSeam } from './seam'
 
 export interface SkyboxOptions {
@@ -15,7 +14,7 @@ const ENTRY_EXTRA = 9 // entry starts this much wider, easing in to the target f
 const ENTRY_MS = 750
 const DISPLACE_LERP = 0.06 // per-frame ease of the depth "inflate"
 
-/** Device capability tier — chooses tessellation, pixel ratio, parallax + motes. */
+/** Device capability tier — chooses tessellation, pixel ratio, and parallax. */
 interface Tier {
   segW: number
   segH: number
@@ -24,8 +23,6 @@ interface Tier {
   displace: number
   /** Parallax magnitude scale (0 disables). */
   parallax: number
-  /** Dust-mote count for the atmosphere layer. */
-  motes: number
 }
 
 /**
@@ -54,9 +51,7 @@ export class Skybox {
   private texture: THREE.Texture | null = null
   private depthTexture: THREE.Texture | null = null
   private readonly fallbackDepth: THREE.DataTexture
-  private atmosphere: Atmosphere | null = null
   private disposed = false
-  private lastFrame = 0
   private raf = 0
   private readonly onResize = () => this.resize()
 
@@ -108,7 +103,7 @@ export class Skybox {
     this.fallbackDepth.needsUpdate = true
     this.depthU.depthMap.value = this.fallbackDepth
 
-    // fog:false keeps the panorama crisp — only the atmosphere motes are fogged.
+    // fog:false keeps the panorama crisp.
     this.material = new THREE.MeshBasicMaterial({ color: 0x05050c, fog: false })
     this.patchMaterial(this.material)
     this.mesh = new THREE.Mesh(this.geometry, this.material)
@@ -123,20 +118,6 @@ export class Skybox {
     this.resize()
     window.addEventListener('resize', this.onResize)
     this.start()
-  }
-
-  /**
-   * Add the atmosphere layer (drifting motes + palette fog). `color` is the
-   * averaged artwork palette; `mood` nudges the drift speed. Mote count follows
-   * the device tier. Safe to call again (replaces the previous layer).
-   */
-  setAtmosphere(opts: { color: number; mood?: string }): void {
-    this.atmosphere?.dispose()
-    this.atmosphere = new Atmosphere(this.scene, {
-      count: this.tier.motes,
-      color: opts.color,
-      mood: opts.mood,
-    })
   }
 
   enableDeviceOrientation(): void {
@@ -269,12 +250,8 @@ export class Skybox {
     this.fpsStart = nowMs()
     const loop = () => {
       this.raf = requestAnimationFrame(loop)
-      const t = nowMs()
-      const dt = this.lastFrame ? Math.min(0.05, (t - this.lastFrame) / 1000) : 0
-      this.lastFrame = t
 
       this.controls.update()
-      this.atmosphere?.update(dt)
 
       // Ease the depth displacement in (and out, if degraded).
       this.displaceCur += (this.displaceTarget - this.displaceCur) * DISPLACE_LERP
@@ -323,7 +300,6 @@ export class Skybox {
     this.disposed = true
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.onResize)
-    this.atmosphere?.dispose()
     this.controls.dispose()
     this.texture?.dispose()
     this.depthTexture?.dispose()
@@ -344,12 +320,12 @@ function pickTier(): Tier {
   const weak = coarse && (cores <= 4 || dpr <= 1.5)
 
   if (!coarse && cores >= 8) {
-    return { segW: 160, segH: 96, pixelCap: 2, displace: 180, parallax: 1, motes: 500 }
+    return { segW: 160, segH: 96, pixelCap: 2, displace: 180, parallax: 1 }
   }
   if (weak) {
-    return { segW: 96, segH: 64, pixelCap: 1.5, displace: 110, parallax: 0.5, motes: 150 }
+    return { segW: 96, segH: 64, pixelCap: 1.5, displace: 110, parallax: 0.5 }
   }
-  return { segW: 128, segH: 80, pixelCap: 2, displace: 150, parallax: 0.8, motes: 320 }
+  return { segW: 128, segH: 80, pixelCap: 2, displace: 150, parallax: 0.8 }
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {

@@ -46,28 +46,6 @@ interface DragState {
   vy: number // px/ms, upward positive
 }
 
-/** Average the artwork palette into one tint for the atmosphere (motes + fog). */
-function avgPaletteColor(palette: string[]): number {
-  const fallback = 0x2a2f4a
-  if (!palette?.length) return fallback
-  let r = 0
-  let g = 0
-  let b = 0
-  let n = 0
-  for (const name of palette) {
-    let hex = paletteColor(name).replace('#', '')
-    if (hex.length === 3) hex = hex.replace(/(.)/g, '$1$1')
-    if (!/^[0-9a-f]{6}$/i.test(hex)) continue
-    const v = parseInt(hex, 16)
-    r += (v >> 16) & 255
-    g += (v >> 8) & 255
-    b += v & 255
-    n++
-  }
-  if (!n) return fallback
-  return ((Math.round(r / n) << 16) | (Math.round(g / n) << 8) | Math.round(b / n)) >>> 0
-}
-
 export function WorldViewer({
   panoramaUrl,
   depthUrl,
@@ -139,8 +117,6 @@ export function WorldViewer({
 
     const sky = new Skybox(host)
     let cancelled = false
-
-    sky.setAtmosphere({ color: avgPaletteColor(meta.palette), mood: meta.mood })
 
     void (async () => {
       try {
