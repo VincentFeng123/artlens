@@ -9,7 +9,7 @@ export interface LookControls {
   enableDeviceOrientation(): void
   /** Current active mode (flips to 'device' once real sensor data arrives). */
   getMode(): LookMode
-  /** Live camera positional offset (used for parallax-aware depth displacement). */
+  /** The current bounded look-offset (rotation + parallax translation). Currently unused externally. */
   getOffset(): THREE.Vector3
   /** Enable/disable the fake-parallax translation and scale its magnitude. */
   setParallax(enabled: boolean, scale?: number): void

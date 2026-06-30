@@ -32,4 +32,12 @@ describe('featherSeam', () => {
     featherSeam(data, w, h, 0)
     expect(data).toEqual(copy)
   })
+
+  it('is a no-op when the bands would overlap (w < 2*band)', () => {
+    const w = 6, h = 1
+    const data = new Uint8ClampedArray(w * h * 4).fill(50)
+    const copy = data.slice()
+    featherSeam(data, w, h, 4) // 2*band = 8 > w = 6 → no-op
+    expect(data).toEqual(copy)
+  })
 })
