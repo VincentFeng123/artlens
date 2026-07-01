@@ -130,6 +130,7 @@ const BASE_NEGATIVES = [
   'visible seam',
   'duplicated edge',
   'flat painting on a wall',
+  'oversaturated',
 ]
 
 /**
@@ -144,14 +145,14 @@ export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
   const sl = r.spatial_layout
   const titleLine =
     r.recognized && r.title
-      ? ` In the spirit of "${r.title}"${r.artist ? ` by ${r.artist}` : ''}.`
+      ? ` Faithful to "${r.title}"${r.artist ? ` by ${r.artist}` : ''} — this is that painting's own world, seen from within.`
       : ''
 
   // Medium first and loud — this is what keeps it a painting, not a photo.
   const mediumLine = r.technique
-    ? ` Rendered entirely as ${r.technique}; every surface shows this same hand and medium — a painting, never a photograph or 3D render.`
+    ? ` Rendered entirely as ${r.technique}; reproduce the artist's exact brushwork, edges and touch — every surface shows this same hand and medium, a painting, never a photograph or 3D render.`
     : r.medium
-      ? ` Painted in ${r.medium}, never photographic.`
+      ? ` Painted in ${r.medium}, in the artist's own hand, never photographic.`
       : ''
 
   // Directional space: ahead / around / behind / above / below.
@@ -171,18 +172,20 @@ export function buildScenePrompt(r: RecognitionResult): ScenePrompt {
 
   const vantage = r.vantage ? ` You stand ${r.vantage}.` : ''
   const horizon = r.horizon ? ` Horizon: ${r.horizon}.` : ''
-  const persp = r.perspective ? ` Spatial depth: ${r.perspective}.` : ''
+  const persp = r.perspective ? ` Compose the space as the original does — its ${r.perspective} perspective, kept as flat or as deep as the painting itself, not a generic deep 3D space.` : ''
   const lightStr = [r.light?.quality, r.light?.direction].filter(Boolean).join(', ')
-  const light = lightStr ? ` Light: ${lightStr}.` : ''
+  const light = lightStr ? ` Light exactly as in the original: ${lightStr}, with matching shadows and atmosphere.` : ''
   const palette = r.palette?.length
-    ? ` Hold strictly to this palette and no other colours: ${r.palette.join(', ')}.`
+    ? ` Hold strictly to the original's palette and no other colours, at the same values and saturation: ${r.palette.join(', ')}.`
     : ''
+
+  const subjects = ` Keep the real subjects, motifs and setting the original depicts, continuing them naturally past the frame — invent nothing foreign to it.`
 
   const prompt = (
     `A vast, immersive 360° equirectangular world you are standing in the middle of — ` +
     `the living world this painting opens onto, extending far past the frame in every ` +
-    `direction with real depth and distance, a place you could walk into.${titleLine}` +
-    `${mediumLine}${vantage} ${space}${sceneFallback}${horizon}${persp}${light} ` +
+    `direction, a place you could walk into.${titleLine}` +
+    `${mediumLine}${vantage} ${space}${sceneFallback}${horizon}${persp}${light}${subjects} ` +
     `Every surface is hand-painted in this same artistic style — an expansive, atmospheric ` +
     `scene, NOT a flat copy of the artwork on a wall. Style: ${r.style}. Mood: ${r.mood}.${palette} ` +
     `Fully seamless: the brushwork wraps all the way around with no visible seam, line or ` +
