@@ -14,6 +14,7 @@ import { cropManyToBoxes } from '../lib/crop'
 import { getPref } from '../lib/contentPref'
 import { localizeDossier } from '../lib/localize'
 import { termRegex } from '../lib/glossary'
+import { isKidsLevel, showSection, seeingLabel, paletteLabel } from '../lib/kidsView'
 
 interface Props {
   panoramaUrl: string
@@ -396,7 +397,9 @@ export function WorldViewer({
       meta.provenance ||
       meta.style,
   )
-  const glossary = meta.glossary ?? []
+  const kids = isKidsLevel(meta.level)
+  // Kids view drops the tappable glossary chips (no jargon to define anyway).
+  const glossary = kids ? [] : (meta.glossary ?? [])
   const paletteNotes = meta.palette_notes ?? []
   // First-occurrence-only across the whole card: a term is chipped once, topmost.
   const usedTerms = new Set<string>()
@@ -528,7 +531,7 @@ export function WorldViewer({
             {/* The visual heart: each symbol as a real fragment of the painting,
                 plus a tap-to-reveal "did you notice". Lives in the lean-in now. */}
             {(meta.symbolism.length > 0 || meta.hidden_details.length > 0) && (
-              <Section label="What you're really seeing">
+              <Section label={seeingLabel(meta.level)}>
                 {meta.symbolism.length > 0 && (
                   <ul className="world__sym">
                     {meta.symbolism.map((s, i) => {
@@ -571,7 +574,7 @@ export function WorldViewer({
               </Section>
             )}
 
-            {(meta.brushwork || meta.materiality || meta.scale_note) && (
+            {showSection('howMade', meta.level) && (meta.brushwork || meta.materiality || meta.scale_note) && (
               <Section label="How it was made">
                 {meta.brushwork && (
                   <p className="world__prose">
@@ -588,7 +591,7 @@ export function WorldViewer({
             )}
 
             {meta.palette.length > 0 && (
-              <Section label="Palette">
+              <Section label={paletteLabel(meta.level)}>
                 <ul className="world__palette">
                   {meta.palette.map((c, i) => {
                     const note = paletteNotes[i]
@@ -627,13 +630,13 @@ export function WorldViewer({
             )}
 
             {/* Rabbit hole */}
-            {hasRabbitHole && (
+            {!kids && hasRabbitHole && (
               <div className="world__depth" aria-hidden>
                 <span>Go deeper</span>
               </div>
             )}
 
-            {meta.process && (
+            {showSection('process', meta.level) && meta.process && (
               <Section label="Underneath">
                 <p className="world__prose">
                   {injectGlossary(meta.process, glossary, usedTerms, meta.lang ?? 'en')}
@@ -641,7 +644,7 @@ export function WorldViewer({
               </Section>
             )}
 
-            {meta.why_made && (
+            {showSection('whyMade', meta.level) && meta.why_made && (
               <Section label="Why it was made">
                 <p className="world__prose">
                   {injectGlossary(meta.why_made, glossary, usedTerms, meta.lang ?? 'en')}
@@ -649,7 +652,7 @@ export function WorldViewer({
               </Section>
             )}
 
-            {(meta.legacy || meta.debates) && (
+            {showSection('stillMatters', meta.level) && (meta.legacy || meta.debates) && (
               <Section label="Why it still matters">
                 {meta.legacy && (
                   <p className="world__prose">
@@ -665,7 +668,7 @@ export function WorldViewer({
               </Section>
             )}
 
-            {hasCatalog && (
+            {showSection('facts', meta.level) && hasCatalog && (
               <Section label="The facts">
                 <dl className="world__catalog">
                   <Fact label="Year" value={meta.year} />
