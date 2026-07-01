@@ -6,11 +6,11 @@ export const LANG_LABEL: Record<Locale, string> = {
   fr: 'Français', de: 'Deutsch', ja: '日本語', ko: '한국어', pt: 'Português',
 }
 
-/** Reading levels low→high, index-aligned to the slider stops (0,1,2). */
+/** Reading levels low→high, in button order (Kids, Teens, Adult). */
 export const LEVELS: ReadingLevel[] = ['simple', 'medium', 'rich']
 
 /**
- * Friendly slider labels per level — DISPLAY ONLY. The stored {@link ReadingLevel}
+ * Friendly button labels per level — DISPLAY ONLY. The stored {@link ReadingLevel}
  * stays 'simple' | 'medium' | 'rich', so cache keys, the scan body, and the prompt
  * rubric are unaffected; only the on-screen word changes.
  */
@@ -31,9 +31,9 @@ interface Props {
 }
 
 /**
- * The dossier language pill (a <details> over SUPPORTED_LOCALES) + a 3-stop
- * reading-level slider. Controlled: renders from `value`, emits `onChange` on a
- * language pick or slider move. Owns NO persistence — each consumer wires
+ * The dossier language pill (a <details> over SUPPORTED_LOCALES) + a 3-button
+ * reading-level control (Kids/Teens/Adult). Controlled: renders from `value`,
+ * emits `onChange` on a language pick or level click. Owns NO persistence — each consumer wires
  * `onChange` to its own store + state. Reuses the world__controls/__lang/__level
  * styles so it looks identical in the world card and on the Adjust screen.
  */
@@ -57,14 +57,19 @@ export function DossierControls({ value, onChange, busy = false }: Props) {
           ))}
         </ul>
       </details>
-      <input
-        className="world__level"
-        type="range" min={0} max={2} step={1}
-        value={LEVELS.indexOf(value.level)}
-        aria-label="Reading level"
-        onChange={(e) => onChange({ ...value, level: LEVELS[Number(e.target.value)] })}
-      />
-      <span className="world__level-label">{LEVEL_LABEL[value.level]}</span>
+      <div className="world__level" role="group" aria-label="Reading level">
+        {LEVELS.map((lvl) => (
+          <button
+            key={lvl}
+            type="button"
+            className={`world__level-btn${lvl === value.level ? ' is-active' : ''}`}
+            aria-pressed={lvl === value.level}
+            onClick={() => onChange({ ...value, level: lvl })}
+          >
+            {LEVEL_LABEL[lvl]}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

@@ -26,12 +26,14 @@ afterEach(() => {
 })
 
 describe('DossierControls', () => {
-  it('renders the pill label and slider position from value', () => {
+  it('renders the pill label and the active level button from value', () => {
     const el = render({ lang: 'ja', level: 'rich' }, () => {})
     expect(el.querySelector('.world__lang-pill')!.textContent).toBe(LANG_LABEL.ja)
-    const slider = el.querySelector('.world__level') as HTMLInputElement
-    expect(slider.value).toBe(String(LEVELS.indexOf('rich')))
-    expect(el.querySelector('.world__level-label')!.textContent).toBe(LEVEL_LABEL.rich)
+    const btns = Array.from(el.querySelectorAll('.world__level-btn')) as HTMLButtonElement[]
+    expect(btns.map((b) => b.textContent)).toEqual(LEVELS.map((l) => LEVEL_LABEL[l]))
+    const active = btns.find((b) => b.classList.contains('is-active'))!
+    expect(active.textContent).toBe(LEVEL_LABEL.rich)
+    expect(active.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('calls onChange with the picked language', () => {
@@ -43,16 +45,12 @@ describe('DossierControls', () => {
     expect(onChange).toHaveBeenCalledWith({ lang: 'es', level: 'medium' })
   })
 
-  it('calls onChange with the new level on a slider move', () => {
+  it('calls onChange with the picked reading level on a button click', () => {
     const onChange = vi.fn()
     const el = render({ lang: 'en', level: 'medium' }, onChange)
-    const slider = el.querySelector('.world__level') as HTMLInputElement
-    // Bypass React's value tracking so the synthetic onChange fires.
-    const setNativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
-    act(() => {
-      setNativeValue.call(slider, '0')
-      slider.dispatchEvent(new Event('input', { bubbles: true }))
-    })
+    const btns = Array.from(el.querySelectorAll('.world__level-btn')) as HTMLButtonElement[]
+    const kids = btns.find((b) => b.textContent === LEVEL_LABEL.simple)!
+    act(() => { kids.click() })
     expect(onChange).toHaveBeenCalledWith({ lang: 'en', level: 'simple' })
   })
 })

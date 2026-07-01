@@ -1329,8 +1329,12 @@ button.world__swatch-btn {
 .world__lang-menu button { width: 100%; text-align: left; padding: 6px 12px; background: none; color: inherit;
   border: 0; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 .world__lang-menu button.is-active { background: rgba(255,255,255,0.12); }
-.world__level { flex: 1; max-width: 160px; }
-.world__level-label { font-size: 0.78rem; opacity: 0.7; text-transform: capitalize; min-width: 3.5em; }
+.world__level { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px;
+  background: rgba(255,255,255,0.06); }
+.world__level-btn { font-size: 0.85rem; padding: 4px 12px; border: 0; border-radius: 999px;
+  background: none; color: inherit; cursor: pointer; opacity: 0.6; white-space: nowrap;
+  transition: background 0.15s ease, opacity 0.15s ease; }
+.world__level-btn.is-active { background: rgba(255,255,255,0.14); opacity: 1; }
 
 /* ── Error / banner ──────────────────────────────────────────── */
 .banner {
