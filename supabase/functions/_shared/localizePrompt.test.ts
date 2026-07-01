@@ -13,6 +13,10 @@ describe('buildLocalizePrompt', () => {
     expect(p.toLowerCase()).toMatch(/soften|leave out|gentle/)               // content softening
     expect(p).not.toContain('Same facts, same depth')                         // depth now defers to level
   })
+  it('still guarantees fact + depth preservation for non-simple levels', () => {
+    const p = buildLocalizePrompt(base, 'en', 'medium')
+    expect(p.toLowerCase()).toMatch(/same depth|keep every fact|all the same facts/)
+  })
   it('embeds the source dossier and demands the same JSON shape + verbatim fields', () => {
     const p = buildLocalizePrompt(base, 'es', 'rich')
     expect(p).toContain('Mona Lisa')          // dossier present

@@ -23,7 +23,7 @@ export function buildLocalizePrompt(dossier: RecognitionResult, lang: Locale, le
     `READING LEVEL: ${LEVEL_RUBRIC[level]}`,
     `Translate/adapt EVERY human-readable prose field: hook, provenance, story, brushwork, materiality, scale_note, palette (the colour LABELS), palette_notes, symbolism[].detail, symbolism[].meaning, hidden_details, process, why_made, legacy, debates, mood, style, medium, glossary[].term, glossary[].definition.`,
     `Keep these fields BYTE-FOR-BYTE UNCHANGED (do not translate or alter): title, artist, artist_life, year, dimensions, location, confidence, recognized, similar_works, symbolism[].box, palette_hex, and any world-generation fields (scene_description, render_negatives, spatial_layout, horizon, perspective, light, vantage, offscreen, technique).`,
-    `Preserve the EXACT JSON structure and array lengths (palette and palette_notes stay index-aligned). Keep the same proper nouns and numbers and the verbatim fields listed above; how much to simplify, shorten, or soften the prose is governed entirely by the READING LEVEL above.`,
+    `Preserve the EXACT JSON structure and array lengths (palette and palette_notes stay index-aligned). Keep every fact, name and number and the same depth, and keep the verbatim fields byte-for-byte. Only the 'simple' reading level may shorten, simplify, or soften content as its rubric directs — 'medium' and 'rich' keep all the same facts at the same depth, changing only the wording.`,
     `Return ONLY the JSON object, no prose, no code fences.`,
     `DOSSIER:`,
     JSON.stringify(dossier),
