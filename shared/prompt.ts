@@ -12,7 +12,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 }
 
 export const LEVEL_RUBRIC: Record<ReadingLevel, string> = {
-  simple: 'Write for a curious 8-year-old child. Use very short sentences and only the simplest, most common everyday words — picture-book plain. Absolutely no jargon or art-historical terms; if you must name something, explain it the way you would to a young kid. Stay warm, concrete, and a little playful, keep the true facts, and make every line effortless — noticeably shorter and simpler than the original.',
+  simple: 'Write for a child in 1st to 3rd grade — about 6 to 9 years old — who is just learning to read. Use tiny sentences of only a few simple, common words, like an early picture book, and make every part very short — much shorter than the original. Use no art words and no hard words at all; if you must name a thing, say it the way you would to a small kid. Be warm, playful, and full of wonder, always about what you can see and feel. Keep it happy and gentle for young children: soften or simply leave out anything scary, sad, or grown-up — nothing about death, killing, violence, blood, or nudity.',
   medium: 'Keep the current voice — vivid, plain-spoken, a knowledgeable friend. Some art vocabulary is fine when it earns its place.',
   rich: 'Use precise art-historical vocabulary and a longer, more literary cadence. Assume an engaged, educated reader; do not dumb anything down.',
 }
@@ -29,7 +29,7 @@ export function buildLocalizePrompt(dossier: RecognitionResult, lang: Locale, le
     `READING LEVEL: ${LEVEL_RUBRIC[level]}`,
     `Translate/adapt EVERY human-readable prose field: hook, provenance, story, brushwork, materiality, scale_note, palette (the colour LABELS), palette_notes, symbolism[].detail, symbolism[].meaning, hidden_details, process, why_made, legacy, debates, mood, style, medium, glossary[].term, glossary[].definition.`,
     `Keep these fields BYTE-FOR-BYTE UNCHANGED (do not translate or alter): title, artist, artist_life, year, dimensions, location, confidence, recognized, similar_works, symbolism[].box, palette_hex, and any world-generation fields (scene_description, render_negatives, spatial_layout, horizon, perspective, light, vantage, offscreen, technique).`,
-    `Preserve the EXACT JSON structure and array lengths (palette and palette_notes stay index-aligned). Same facts, same depth — only the wording changes.`,
+    `Preserve the EXACT JSON structure and array lengths (palette and palette_notes stay index-aligned). Keep the same proper nouns and numbers and the verbatim fields listed above; how much to simplify, shorten, or soften the prose is governed entirely by the READING LEVEL above.`,
     `Return ONLY the JSON object, no prose, no code fences.`,
     `DOSSIER:`,
     JSON.stringify(dossier),

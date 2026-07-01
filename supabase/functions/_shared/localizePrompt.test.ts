@@ -8,8 +8,10 @@ describe('buildLocalizePrompt', () => {
   it('names the target language and the reading-level rubric', () => {
     const p = buildLocalizePrompt(base, 'zh-Hans', 'simple')
     expect(p).toContain('Simplified Chinese')
-    expect(p.toLowerCase()).toContain('short sentences')   // simple rubric
-    expect(p.toLowerCase()).toMatch(/8-year-old|child|kid/) // kids level is child-simple
+    expect(p.toLowerCase()).toMatch(/tiny sentences|much shorter|very short/) // simple = tinier
+    expect(p.toLowerCase()).toMatch(/8-year-old|child|kid/)                   // young audience
+    expect(p.toLowerCase()).toMatch(/soften|leave out|gentle/)               // content softening
+    expect(p).not.toContain('Same facts, same depth')                         // depth now defers to level
   })
   it('embeds the source dossier and demands the same JSON shape + verbatim fields', () => {
     const p = buildLocalizePrompt(base, 'es', 'rich')
